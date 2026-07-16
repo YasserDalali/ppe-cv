@@ -50,6 +50,5 @@ Useful when you need another example of the same venue/lab skeleton (intro stats
 3. `drone-aerial-accident-detection.md` — YOLO results / trade-offs / limitations table  
 4. `tongue-diagnosis-mobilenet.md` — abstract + results subsection rhythm  
 5. Peek at CT / TB / IA-Med only if you need another table or limitations phrasing  
-6. Keep `references.txt` open while filling Related Work / intro citations  
-)
+6. Keep `references.txt` open while filling Related Work / intro citations
 

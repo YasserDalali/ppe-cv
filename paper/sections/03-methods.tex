@@ -54,13 +54,56 @@ Two constraints shape this design. The pipeline must retrofit onto CCTV cameras 
 \subsection{Dataset Construction}
 \label{sec:methods-dataset}
 
-No single public corpus covers the class mix of a chemical-processing site, so the training set is a fusion of two public sources under one class map. Roboflow PPE-Detection \cite{roboflowppe} contributes a helmet- and vest-centred detection benchmark typical of construction imagery. SH17 \cite{ahmad2024sh17} contributes 17 classes of PPE items and human body parts across varied industrial scenes. Both are merged into a unified ten-class map: Person, helmet, vest, gloves, boots, goggles, no\_helmet, no\_gloves, no\_goggle, and gas mask. The explicit negative classes (no\_helmet, no\_gloves, no\_goggle) let the detector localize the \emph{absence} of an item directly instead of inferring it from a missing detection.
+No single public corpus covers the class mix of a chemical-processing site, so the training set fuses three public sources and one site-specific corpus under a single class map (Fig.~\ref{fig:datasets}). Roboflow PPE-Detection \cite{roboflowppe} contributes a helmet- and vest-centred detection benchmark typical of construction imagery. SH17 \cite{ahmad2024sh17} contributes 17 classes of PPE items and human body parts across varied industrial scenes. A dedicated respirator dataset supplies instances of the gas-mask class that construction-skewed benchmarks barely cover.
+% TODO before submission: cite the gas-mask dataset source here once it is chosen
+% for the rerun (add the entry to references.bib and \cite it).
+All sources are merged into a unified ten-class map: Person, helmet, vest, gloves, boots, goggles, no\_helmet, no\_gloves, no\_goggle, and gas mask. The explicit negative classes (no\_helmet, no\_gloves, no\_goggle) let the detector localize the \emph{absence} of an item directly instead of inferring it from a missing detection.
+
+\begin{figure}[t]
+\centering
+\resizebox{\columnwidth}{!}{%
+\begin{tikzpicture}[
+  font=\footnotesize\sffamily,
+  >=Latex,
+  box/.style={
+    draw,
+    rounded corners=1.5pt,
+    align=center,
+    inner sep=3pt,
+    minimum height=0.9cm,
+    minimum width=3.4cm,
+    line width=0.6pt
+  },
+  src/.style={box, fill=gray!12},
+  proc/.style={box, fill=gray!25, minimum height=1.35cm, minimum width=2.7cm},
+  arrow/.style={->, thick, shorten >=1pt, shorten <=1pt},
+  note/.style={font=\scriptsize\sffamily, fill=white, inner sep=1pt}
+]
+  \node[src] (d1) {Roboflow PPE-Detection\\[-1pt]{\scriptsize public $\cdot$ helmets, vests}};
+  \node[src, below=0.3cm of d1] (d2) {SH17\\[-1pt]{\scriptsize public $\cdot$ 17 industrial classes}};
+  \node[src, below=0.3cm of d2] (d3) {Gas-mask dataset\\[-1pt]{\scriptsize public $\cdot$ respirators}};
+  \node[src, dashed, below=0.3cm of d3] (d4) {OCP site cameras\\[-1pt]{\scriptsize self-annotated $\cdot$ in progress}};
+
+  \coordinate (mid) at ($(d2.east)!0.5!(d3.east)$);
+  \node[proc, right=1.9cm of mid] (fuse) {\textbf{Fusion}\\[1pt]explicit class-ID remap\\[-1pt]{\scriptsize unified 10-class map}};
+  \node[proc, right=0.8cm of fuse] (model) {\textbf{YOLOv8n}\\[1pt]fine-tuning\\[-1pt]{\scriptsize $640\times640$ $\rightarrow$ \texttt{best.pt}}};
+
+  \draw[arrow] (d1.east) -- node[note, pos=0.45, above, sloped] {ID remap} ($(fuse.west)+(0,0.45)$);
+  \draw[arrow] (d2.east) -- node[note, pos=0.45, above, sloped] {ID remap} ($(fuse.west)+(0,0.15)$);
+  \draw[arrow] (d3.east) -- node[note, pos=0.45, below, sloped] {oversampled} ($(fuse.west)+(0,-0.15)$);
+  \draw[arrow, dashed] (d4.east) -- node[note, pos=0.45, below, sloped] {sampling weight $\uparrow$} ($(fuse.west)+(0,-0.45)$);
+  \draw[arrow] (fuse) -- (model);
+\end{tikzpicture}%
+}
+\caption{Dataset composition feeding the detector fine-tune (stage 2 of Fig.~\ref{fig:pipeline}). Four sources are merged under a unified ten-class map with explicit label-ID remapping before any image enters training; SH17 classes outside the PPE scope are pruned. The gas-mask source is oversampled to counter class imbalance, and the self-annotated OCP corpus (dashed: in progress) receives a higher sampling weight so that batches skew toward deployment-realistic imagery. No result reported in this paper depends on the OCP component.}
+\label{fig:datasets}
+\end{figure}
 
 Fusing annotation sets is not a file-concatenation exercise, and the remapping step deserves emphasis because its failure mode is silent. Each source ships label files whose integer class IDs index that source's own ontology: SH17's IDs 0--16 reference its 17-class list, not the fused ten-class map. Under naive merging, IDs that happen to fall inside the fused range are reinterpreted as the wrong class, while every image containing a label ID at or above the fused class count is discarded by the training framework as corrupt, with no error raised. In a preliminary naive merge, the second mode alone silently rejected roughly 43\% of the fused training images. Our fusion pipeline therefore performs explicit ID remapping before merging: each SH17 class is either mapped to its fused-map ID or deliberately excluded (e.g., body-part classes outside the PPE scope), the mapping is recorded, and all label files are rewritten against the unified map before any image enters training.
 
-The gas-mask class receives targeted treatment. Respiratory protection is among the most safety-relevant PPE items at chemical-processing sites, yet it is under-represented in public data, which skews toward construction. The fused map reserves a gas-mask class, and the comparatively few source images containing respirators are reinforced through oversampling and the augmentation policy of Section~\ref{sec:methods-preprocessing}.
+The gas-mask class receives targeted treatment. Respiratory protection is among the most safety-relevant PPE items at chemical-processing sites, yet it is under-represented in public data, which skews toward construction. The fused map reserves a gas-mask class, populated primarily by the dedicated respirator source; because gas-mask instances remain scarce relative to helmets and vests, they are further reinforced through oversampling and the augmentation policy of Section~\ref{sec:methods-preprocessing}.
 
-The third dataset component is a self-annotated corpus from OCP site cameras, capturing conditions public data lacks: phosphate dust, harsh lighting transitions, and site-specific uniforms and equipment. This component is designed and in progress at the time of writing. Annotation follows the fused class map using Roboflow's annotation tooling, and the training design assigns OCP samples a higher sampling weight than public samples, so each batch is biased toward deployment-realistic imagery while the public data preserves visual diversity. We describe the weighting design for completeness; every result in this paper is obtained from the public-data fusion, and no claim depends on the OCP component. The fused dataset is partitioned into \phX\% training, \phX\% validation, and \phX\% test splits, stratified across classes.
+The fourth dataset component is a self-annotated corpus from OCP site cameras, capturing conditions public data lacks: phosphate dust, harsh lighting transitions, and site-specific uniforms and equipment. This component is designed and in progress at the time of writing. Annotation follows the fused class map using Roboflow's annotation tooling, and the training design assigns OCP samples a higher sampling weight than public samples, so each batch is biased toward deployment-realistic imagery while the public data preserves visual diversity. We describe the weighting design for completeness; every result in this paper is obtained from the public-data fusion, and no claim depends on the OCP component. The fused dataset is partitioned into \phX\% training, \phX\% validation, and \phX\% test splits, stratified across classes.
 
 \subsection{Preprocessing}
 \label{sec:methods-preprocessing}
