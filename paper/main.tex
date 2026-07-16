@@ -8,7 +8,9 @@
 \usepackage{textcomp}
 \usepackage{xcolor}
 \usepackage{tikz}
-\usetikzlibrary{arrows.meta,positioning,fit,calc}
+\usetikzlibrary{arrows.meta,positioning,fit,calc,patterns}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.17}
 \usepackage[hidelinks]{hyperref}
 
 % Draft-visible placeholder for metrics pending the training rerun
@@ -16,7 +18,7 @@
 
 \begin{document}
 
-\title{Beyond Human Vigilance: A CCTV-Based Deep Learning System for Real-Time PPE Compliance Detection in Industrial Sites}
+\title{Beyond Human Vigilance: Domain-Adapted PPE Compliance Detection on CCTV at an Operating Chemical Plant}
 
 \author{
 \IEEEauthorblockN{Amine Zeguendry}
@@ -42,7 +44,7 @@ taha.eladi@emsi-edu.ma}
 \end{abstract}
 
 \begin{IEEEkeywords}
-PPE compliance, YOLOv8, vigilance decrement, LLM-based alert verification, industrial safety, computer vision, CCTV retrofitting
+PPE compliance, YOLOv8, domain adaptation, chemical industry, vigilance decrement, LLM-based alert verification, CCTV retrofitting
 \end{IEEEkeywords}
 
 \input{sections/01-introduction}

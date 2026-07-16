@@ -127,3 +127,38 @@ acknowledgements (OCP + EMSI), funding line if any.
 
 OCP fine-tuning run and §4.3 side-by-side: targeted at the Sept 23 camera-ready, not the
 submission (per scope decisions of 2026-07-15).
+
+---
+
+## Repositioning addendum (plan-mode session, 2026-07-16)
+
+User redirected the paper's center of gravity; the following INSIGHTs **supersede** their
+2026-07-15 counterparts above. Applied to the draft the same day.
+
+- **[INSIGHT: thesis_statement — updated]** Generic benchmark training does not transfer to a
+  real, operating chemical plant; a model fused and adapted for industrial/chemical conditions
+  (CCTV angles, gas masks, site uniforms) does. The generic-vs-adapted comparison is the
+  paper's central experiment; the retrofit+verify pipeline is what makes the result deployable.
+- **[INSIGHT: contribution_claim — updated, user's words]** "The core novelty of this work is
+  applying CV to a real, operating chemical plant, which almost no published PPE-detection
+  work actually does… generic benchmark model vs. our industrial-adapted model is the paper's
+  central experiment, and it's what justifies calling this a domain-specific contribution
+  rather than another YOLO variant."
+- **[INSIGHT: reader_takeaway — updated]** Adaptation core, judge secondary (user decision):
+  primary takeaway is the transfer failure of generic benchmarks; "detection ≠ safety system"
+  survives as the systems-level second lesson in §5.2.
+- **Central experiment design (user decisions):** eval on BOTH held-out OCP site imagery
+  (headline) and an industrial proxy set (held-out SH17 + respirator images, publishable
+  without clearance). Generic baseline already exists: the Roboflow-hosted PPE_Detection model
+  — 308 images, 9 construction classes, P 58.1 / R 64.4 / mAP50 59.1 on its own val split.
+  Comparison restricted to the shared class subset, identical resolution/thresholds.
+- **Title (user decision):** "Beyond Human Vigilance: Domain-Adapted PPE Compliance Detection
+  on CCTV at an Operating Chemical Plant".
+- **New defense items:** (1) *data-volume confound* — baseline trained on far less data;
+  owned in Limitations, size-matched control = future work item #1; (2) *in-distribution
+  proxy critique* — answered by making OCP the headline set; (3) comparison scaffold (Table
+  II + Fig. 3) ships with provisional bar heights, every value red-[X] until the evaluation
+  rerun fills the cross-domain cells.
+- **Page-budget alert:** the added comparison subsection + table + chart + confusion-matrix
+  and case-crop placeholders push the draft to 9 pages vs. the 8-page I2CEAI limit — a
+  trimming pass is required before submission.

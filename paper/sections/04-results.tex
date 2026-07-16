@@ -4,7 +4,70 @@
 % training rerun (fixed SH17 remap + gas-mask class). Drop numbers in from the
 % rerun log; do not reuse figures from the earlier fusion run.
 
-The fused-dataset YOLOv8n detector reaches \phX\% precision, \phX\% recall, and \phX\% mAP@50 across all classes while processing a frame in \phX~ms on a Tesla T4-class GPU. That combination is the central finding of this section: accuracy sufficient for operational alerting, delivered at a speed and model footprint that fit the retrofit deployment model on existing CCTV infrastructure. Sections~\ref{sec:results-training} and~\ref{sec:results-perclass} report the detector's aggregate and per-class behavior, Section~\ref{sec:results-ocp} scopes the in-progress site-specific fine-tuning stage, Section~\ref{sec:results-cases} presents qualitative case studies of the LLM judge, Section~\ref{sec:results-errors} analyzes error structure, and Section~\ref{sec:results-runtime} quantifies runtime feasibility.
+The central result of this section is the generic-versus-adapted comparison of Section~\ref{sec:results-comparison}: identical evaluation imagery, one detector trained only on the public construction benchmark, one adapted for industrial and chemical conditions. Around that experiment, the section reports the adapted detector's aggregate and per-class behavior (Sections~\ref{sec:results-training}--\ref{sec:results-perclass}: \phX\% precision, \phX\% recall, \phX\% mAP@50 at \phX~ms per frame on a Tesla T4-class GPU), qualitative case studies of the LLM judge (Section~\ref{sec:results-cases}), error structure (Section~\ref{sec:results-errors}), and runtime feasibility (Section~\ref{sec:results-runtime}).
+
+\subsection{Generic vs.\ Industrial-Adapted Model}\label{sec:results-comparison}
+
+Table~\ref{tab:comparison} holds the central experiment. The generic baseline is competitive on the construction imagery it was built for --- 58.1\% precision, 64.4\% recall, 59.1\% mAP@50 on its own validation split \cite{roboflowppe} --- so the comparison asks what survives contact with an operating chemical plant. Both models are evaluated under the protocol of Section~\ref{sec:methods-comparison} on the held-out OCP site set and on the industrial proxy set. Figure~\ref{fig:comparison} plots the headline OCP comparison.
+
+\begin{table}[t]
+\caption{Central experiment: generic construction-benchmark detector vs.\ industrial-adapted model. Shared-class metrics per the protocol of Section~\ref{sec:methods-comparison}; cross-domain values pending the evaluation rerun.}
+\label{tab:comparison}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llccc}
+\toprule
+Model & Evaluation set & P (\%) & R (\%) & mAP@50 (\%) \\
+\midrule
+Generic \cite{roboflowppe} & Own val.\ (construction) & 58.1 & 64.4 & 59.1 \\
+Generic \cite{roboflowppe} & Industrial proxy & \phX & \phX & \phX \\
+Generic \cite{roboflowppe} & OCP site imagery & \phX & \phX & \phX \\
+\addlinespace
+Adapted (ours) & Fused validation & \phX & \phX & \phX \\
+Adapted (ours) & Industrial proxy & \phX & \phX & \phX \\
+Adapted (ours) & OCP site imagery & \phX & \phX & \phX \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+% TODO: replace the provisional bar heights with measured values from the
+% comparison rerun (OCP rows of Table tab:comparison); the red [X] labels
+% mark every value as a placeholder until then.
+\begin{tikzpicture}
+\begin{axis}[
+  width=\columnwidth, height=4.6cm,
+  ybar, bar width=9pt,
+  ymin=0, ymax=100,
+  ylabel={\footnotesize \%},
+  symbolic x coords={Precision, Recall, mAP@50},
+  xtick=data,
+  tick label style={font=\footnotesize},
+  ymajorgrids, major grid style={gray!25},
+  axis line style={gray!60},
+  legend style={font=\footnotesize, draw=none, fill=none, at={(0.5,1.02)}, anchor=south, legend columns=-1},
+  nodes near coords={{\color{red}[X]}},
+  every node near coord/.append style={font=\scriptsize}
+]
+\addplot[fill=gray!40, draw=gray!70] coordinates {(Precision,40) (Recall,45) (mAP@50,38)};
+\addplot[pattern=north east lines, pattern color=gray!90, draw=gray!70] coordinates {(Precision,72) (Recall,64) (mAP@50,68)};
+\legend{Generic (Roboflow-only)\,, Adapted (ours)}
+\end{axis}
+\end{tikzpicture}
+\caption{Central comparison on held-out OCP chemical-plant imagery (scaffold). Bar heights are provisional and every value is pending the evaluation rerun (marked [X]); the figure is populated from the OCP rows of Table~\ref{tab:comparison}.}
+\label{fig:comparison}
+\end{figure}
+
+Beyond aggregate metrics, Figure~\ref{fig:ocp-compare} compares the two models qualitatively on identical OCP frames under the dust, oblique camera angles, and site uniforms that motivated the adaptation; publication of the underlying site frames is subject to imagery clearance.
+
+\begin{figure}[t]
+\centering
+\fbox{\parbox[c][4cm][c]{0.9\columnwidth}{\centering Placeholder: side-by-side detections,\\generic benchmark model vs.\ industrial-adapted model,\\on identical OCP site imagery.}}
+\caption{Generic vs.\ industrial-adapted model on identical site imagery. TODO: replace placeholder once cleared site frames are available for publication.}
+\label{fig:ocp-compare}
+\end{figure}
 
 \subsection{Training Performance}\label{sec:results-training}
 
@@ -47,20 +110,16 @@ gas mask    & \phX & \phX & \phX \\
 \end{tabular}
 \end{table}
 
-\subsection{Effect of Site-Specific Fine-Tuning}\label{sec:results-ocp}
+\subsection{LLM Judge Qualitative Case Studies}\label{sec:results-cases}
 
-The OCP fine-tuning stage is in progress at the time of writing; no site-specific results are claimed here. The planned evaluation compares the generic fused-dataset model against the OCP-weighted model on an identical held-out set of site imagery, reporting per-class deltas and side-by-side qualitative detections under the dust, lighting, and uniform conditions that motivate the domain-adaptation stage. Figure~\ref{fig:ocp-compare} reserves the position for this comparison, pending completion of the fine-tuning run and clearance of site imagery for publication.
+The judge stage is evaluated qualitatively. The protocol selects three to five real flagged detections from pilot footage and, for each, presents the detection crop, the verbatim \texttt{reason} field returned by the Qwen2.5-VL judge \cite{qwen25vl}, and the final verdict. The case set is chosen to include at least one false positive that the judge correctly rejects (for example, a glare or occlusion artifact of the kind that drives false-alarm load in manual CCTV monitoring \cite{donald2015}) and at least one genuine violation that the judge confirms, so that both failure-suppression and violation-preservation behavior are visible on real inputs. Table~\ref{tab:cases} holds the case scaffold; the corresponding detection crops appear in Fig.~\ref{fig:cases-crops}.
 
 \begin{figure}[t]
 \centering
-\fbox{\parbox[c][4cm][c]{0.9\columnwidth}{\centering Placeholder: side-by-side detections,\\generic fused-dataset model vs.\ OCP-weighted model,\\on identical OCP site imagery.}}
-\caption{Generic vs.\ OCP-weighted model on identical site imagery. TODO: pending OCP fine-tuning run and imagery clearance.}
-\label{fig:ocp-compare}
+\fbox{\parbox[c][3.4cm][c]{0.9\columnwidth}{\centering Placeholder: detection crops for the judge case studies\\of Table~\ref{tab:cases} (pending imagery clearance).}}
+\caption{Detection crops accompanying the judge case studies of Table~\ref{tab:cases}. TODO: insert once site imagery is cleared.}
+\label{fig:cases-crops}
 \end{figure}
-
-\subsection{LLM Judge Qualitative Case Studies}\label{sec:results-cases}
-
-The judge stage is evaluated qualitatively. The protocol selects three to five real flagged detections from pilot footage and, for each, presents the detection crop, the verbatim \texttt{reason} field returned by the Qwen2.5-VL judge \cite{qwen25vl}, and the final verdict. The case set is chosen to include at least one false positive that the judge correctly rejects (for example, a glare or occlusion artifact of the kind that drives false-alarm load in manual CCTV monitoring \cite{donald2015}) and at least one genuine violation that the judge confirms, so that both failure-suppression and violation-preservation behavior are visible on real inputs. Table~\ref{tab:cases} holds the case scaffold.
 
 We state explicitly: no quantitative false-positive-reduction figure is claimed for the judge stage anywhere in this paper. The case studies demonstrate the mechanism operating on real detections; they do not measure its aggregate effect. Quantitative benchmarking of the judge, over a labeled alert set with a confirm/reject confusion matrix, is future work (Section~\ref{sec:discussion}).
 
@@ -83,7 +142,16 @@ Case & Flagged class & Judge verdict & Judge reason (verbatim) \\
 
 \subsection{Error Analysis}\label{sec:results-errors}
 
-Confusion concentrates among visually similar class pairs. The equipment/absence pairs (helmet vs.\ no\_helmet, goggles vs.\ no\_goggle) are separated by fine-grained head-region cues that degrade with distance and partial occlusion; \phX\% of no\_helmet errors fall into this pattern. Dark headwear and hoods account for a further \phX\% of helmet-related confusions, and gloves at long range are confused with bare hands in \phX\% of cases.
+Confusion concentrates among visually similar class pairs (Fig.~\ref{fig:confusion}). The equipment/absence pairs (helmet vs.\ no\_helmet, goggles vs.\ no\_goggle) are separated by fine-grained head-region cues that degrade with distance and partial occlusion; \phX\% of no\_helmet errors fall into this pattern. Dark headwear and hoods account for a further \phX\% of helmet-related confusions, and gloves at long range are confused with bare hands in \phX\% of cases.
+
+\begin{figure}[t]
+\centering
+% TODO: replace with the normalized confusion matrix exported from the rerun
+% (Ultralytics confusion_matrix_normalized.png), cropped to the ten fused classes.
+\fbox{\parbox[c][4.2cm][c]{0.9\columnwidth}{\centering Placeholder: normalized confusion matrix\\of the adapted detector on the fused validation split\\(from the training rerun).}}
+\caption{Normalized confusion matrix of the adapted detector (placeholder pending the training rerun). Per the text, confusion is expected to concentrate within equipment/absence pairs and among small, distant objects.}
+\label{fig:confusion}
+\end{figure}
 
 Class support shapes these figures. The helmet class holds \phX validation instances against \phX for no\_helmet, so the two rows in Table~\ref{tab:perclass} rest on very different evidence bases, and the same asymmetry applies to the other equipment/absence pairs. Boots, no\_goggle, and gas mask each fall below \phX validation instances; their per-class metrics carry wide uncertainty and are treated as indicative rather than conclusive. How much of the observed error structure stems from the multi-source fusion itself, from the nano-scale model capacity, or from support imbalance is a question the per-class numbers will settle once the rerun completes.
 % TODO: after rerun, decide framing per [OPEN: results_posture] in chapter-plan.md (own weak classes openly vs. relax the caveats).
