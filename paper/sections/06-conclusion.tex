@@ -1,0 +1,12 @@
+\section{Conclusion and Future Work}\label{sec:conclusion}
+
+Industrial PPE monitoring fails not for lack of cameras but for lack of sustained attention. We presented a pipeline that retrofits detection and verification onto the CCTV infrastructure a site already owns: a YOLOv8 detector fine-tuned on a composite, domain-adapted dataset, and a vision-language-model judge that reviews each flagged event before it becomes an alert. The dataset is the core contribution: fusion of the public Roboflow PPE-Detection corpus with SH17 \cite{roboflowppe,ahmad2024sh17}, augmentation of the scarce gas-mask class, and weighted sampling that favors self-annotated OCP imagery from the deployment domain. On the fused data the detector attains \phX{} mAP@50 and \phX{} recall at \phX{}\,ms per frame, accuracy and speed compatible with multi-camera deployment on commodity hardware.
+
+Future work proceeds in order of what the argument needs most. First, quantitative benchmarking of the judge on a labeled alert set, reporting its confirm/reject confusion matrix against human ground truth. Second, expansion of the OCP dataset across sites and seasons, completing the fine-tuning stage this paper describes as in progress. Third, temporal tracking and person re-identification, so that compliance is assessed per worker over time rather than per frame. Fourth, edge deployment to cut per-camera latency and network load \cite{edgeyolo2024}. Fifth, integration with access-control and IoT systems so that verified violations can gate entry to hazardous zones. The ordering is deliberate: until the judge is measured, the pipeline's central claim rests on design rationale, and measuring it costs less than any extension that follows.
+
+\section*{Acknowledgment}
+% TODO: confirm wording with partners
+The authors thank OCP Group for site access and collaboration on the deployment study, and EMSI Marrakech for institutional support.
+
+\section*{Data Availability}
+The public datasets used in this work are available from their original sources \cite{roboflowppe,ahmad2024sh17}. Imagery collected at OCP sites is proprietary and cannot be made publicly available.

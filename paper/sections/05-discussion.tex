@@ -1,0 +1,26 @@
+\section{Discussion}\label{sec:discussion}
+
+A detector that flags a missing helmet is not yet a safety system. Whether the pipeline described here improves safety at a phosphate site depends on two surrounding design decisions: adapting the detector to the environment it must watch, and verifying its outputs before they reach a human. This section examines both, then states the limits of the present evaluation.
+
+\subsection{Why Domain Adaptation Matters}
+
+Public PPE corpora are dominated by construction imagery: near-frontal views, daylight, helmets and high-visibility vests \cite{roboflowppe,ppeyolo2024}. A phosphate processing site violates each of these assumptions. Airborne dust lowers contrast and softens object boundaries; fixed CCTV cameras observe workers from high, oblique angles at distances curated datasets rarely contain; and the equipment itself differs, with gas masks and goggles mattering as much as helmets. The composite dataset is a direct response to these mismatches. Fusing the Roboflow PPE-Detection corpus with SH17 \cite{ahmad2024sh17} broadens pose, scale, and class coverage beyond any single source, and the gas-mask augmentation targets the class most specific to chemical processing. On the fused public data the detector reaches \phX{} mAP@50 at \phX{}\,ms per frame, which supports the retrofit claim: usable accuracy at real-time speed on commodity hardware. The remaining gap is deliberately assigned to the third stage of the data design, weighted fine-tuning on self-annotated OCP imagery, which is in progress and not evaluated here. The comparison it enables, generic versus site-weighted on identical OCP frames, is the experiment the dataset was built for.
+
+\subsection{Trade-offs of the LLM Judge Stage}
+
+The takeaway of this paper is that detection alone does not produce a safety system; it relocates the vigilance problem. An unverified detector converts a monitoring burden into an alert-triage burden: safety staff receive a stream in which false positives dominate, habituate to it, and eventually miss the true events, the same decrement documented for CCTV operators \cite{donald2015,sawin1995}. Verification is what makes an alert worth acting on, which is why the judge sits inside the pipeline rather than beside it.
+
+The stage has real costs. Each flagged event incurs a vision-language-model inference measured in seconds rather than milliseconds; because verification runs off the per-frame path this does not affect detection throughput, but it does delay notification. More serious is the asymmetry of judge errors: a rejected true violation is costlier than the false alert it would have replaced, so over-suppression, not latency, is the risk that most needs measurement. Serving location is a third trade-off. Ollama-hosted Qwen2.5-VL \cite{qwen25vl} can run on-premises, keeping frames inside the site network, or in the cloud, which removes the need for an on-site GPU at the price of egress and added latency. The pilot used cloud hosting; on-premises serving is the intended production configuration given the sensitivity of site imagery.
+
+We do not claim a measured false-positive reduction for the judge; the evidence in this paper is architectural and qualitative. The measurement path is nonetheless concrete: assemble a labeled alert set of detector-flagged events, have site safety staff mark each as a genuine violation or a false alarm, run the judge over the set, and report its confirm/reject confusion matrix against that ground truth, with the judge's false-reject rate as the safety-critical headline. This protocol is the first item of future work.
+
+\subsection{Limitations}
+
+\begin{itemize}
+  \item \textbf{Small and distant objects:} gloves and goggles occupy few pixels in wide CCTV views, and the nano-scale detector loses accuracy on them well before helmets or vests are affected.
+  \item \textbf{Dust and weather:} heavy dust, rain, and low light plausibly push accuracy below the reported figures; robustness under these conditions has not been measured.
+  \item \textbf{Gas-mask scarcity:} augmentation raises the sample count but not the diversity of the class, which remains under-represented relative to its importance in chemical processing.
+  \item \textbf{Judge evaluation:} qualitative only. No false-positive-reduction figure has been measured, and none is claimed.
+  \item \textbf{Camera placement:} the system inherits the blind spots of the existing CCTV layout; better detection cannot compensate for uncovered areas.
+  \item \textbf{OCP fine-tuning:} designed and in progress; all site-specific performance claims await its results.
+\end{itemize}
