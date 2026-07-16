@@ -54,9 +54,7 @@ Two constraints shape the design: the pipeline must retrofit onto installed CCTV
 \subsection{Dataset Construction}
 \label{sec:methods-dataset}
 
-No single public corpus covers the class mix of a chemical-processing site, so the training set fuses three public sources and one site-specific corpus under a single class map (Fig.~\ref{fig:datasets}). Roboflow PPE-Detection \cite{roboflowppe} contributes a helmet- and vest-centred detection benchmark typical of construction imagery. SH17 \cite{ahmad2024sh17} contributes 17 classes of PPE items and human body parts across varied industrial scenes. A dedicated respirator dataset supplies instances of the gas-mask class that construction-skewed benchmarks barely cover.
-% TODO before submission: cite the gas-mask dataset source here once it is chosen
-% for the rerun (add the entry to references.bib and \cite it).
+No single public corpus covers the class mix of a chemical-processing site, so the training set fuses three public sources and one site-specific corpus under a single class map (Fig.~\ref{fig:datasets}). Roboflow PPE-Detection \cite{roboflowppe} contributes a helmet- and vest-centred detection benchmark typical of construction imagery. SH17 \cite{ahmad2024sh17} contributes 17 classes of PPE items and human body parts across varied industrial scenes. The Roboflow gas masks corpus \cite{roboflowgasmasks} (384 images) supplies instances of the gas-mask class that construction-skewed benchmarks barely cover.
 All sources are merged into a unified ten-class map: Person, helmet, vest, gloves, boots, goggles, no\_helmet, no\_gloves, no\_goggle, and gas mask. The explicit negative classes (no\_helmet, no\_gloves, no\_goggle) let the detector localize the \emph{absence} of an item directly instead of inferring it from a missing detection.
 
 \begin{figure}[t]
@@ -81,7 +79,7 @@ All sources are merged into a unified ten-class map: Person, helmet, vest, glove
 ]
   \node[src] (d1) {Roboflow PPE-Detection\\[-1pt]{\scriptsize public $\cdot$ helmets, vests}};
   \node[src, below=0.3cm of d1] (d2) {SH17\\[-1pt]{\scriptsize public $\cdot$ 17 industrial classes}};
-  \node[src, below=0.3cm of d2] (d3) {Gas-mask dataset\\[-1pt]{\scriptsize public $\cdot$ respirators}};
+  \node[src, below=0.3cm of d2] (d3) {Roboflow gas masks\\[-1pt]{\scriptsize public $\cdot$ 384 images}};
   \node[src, below=0.3cm of d3] (d4) {OCP site cameras\\[-1pt]{\scriptsize self-annotated}};
 
   \coordinate (mid) at ($(d2.east)!0.5!(d3.east)$);
@@ -101,7 +99,7 @@ All sources are merged into a unified ten-class map: Person, helmet, vest, glove
 
 Fusing annotation sets is not file concatenation, and the remapping step deserves emphasis because its failure mode is silent. Each source's integer class IDs index that source's own ontology: SH17's IDs 0--16 reference its 17-class list, not the fused map. Under naive merging, in-range IDs are reinterpreted as the wrong class, and every image with an ID at or above the fused class count is silently discarded as corrupt --- in a preliminary naive merge, this alone rejected roughly 43\% of training images. Our pipeline therefore remaps explicitly before merging: each SH17 class is mapped to its fused ID or deliberately excluded (body-part classes), the mapping is recorded, and all label files are rewritten before any image enters training.
 
-The gas-mask class receives targeted treatment: respiratory protection is among the most safety-relevant items at chemical sites yet under-represented in construction-skewed public data, so the class is populated by the dedicated respirator source and reinforced through oversampling and the augmentation policy of Section~\ref{sec:methods-preprocessing}.
+The gas-mask class receives targeted treatment: respiratory protection is among the most safety-relevant items at chemical sites yet under-represented in construction-skewed public data, so the class is populated by the Roboflow gas masks corpus \cite{roboflowgasmasks} and reinforced through oversampling and the augmentation policy of Section~\ref{sec:methods-preprocessing}.
 
 The fourth dataset component is a self-annotated corpus from OCP site cameras, capturing conditions public data lacks: phosphate dust, harsh lighting transitions, and site-specific uniforms and equipment. This corpus has been collected and annotated against the fused class map using Roboflow's annotation tooling, and is included in the training mix. OCP samples receive a higher sampling weight than public samples, so each batch is biased toward deployment-realistic imagery while the public data preserves visual diversity. A held-out portion of the OCP corpus, disjoint from all training data, forms the chemical-plant evaluation set of the central comparison (Section~\ref{sec:methods-comparison}); publication of individual site frames remains subject to imagery clearance. The fused dataset is partitioned into \phX\% training, \phX\% validation, and \phX\% test splits, stratified across classes.
 
@@ -120,7 +118,7 @@ The detector is YOLOv8n \cite{ultralytics2023}, the nano variant of YOLOv8: 3.0M
 
 The central experiment asks whether generic benchmark training transfers to an operating chemical plant. The \emph{generic baseline} is the detector trained solely on the Roboflow PPE-Detection corpus \cite{roboflowppe}: 308 images over nine construction-oriented classes, reporting 58.1\% precision, 64.4\% recall, and 59.1\% mAP@50 on its own validation split --- representative of what a practitioner deploying a public benchmark model obtains off the shelf. The \emph{industrial-adapted model} is the fused-dataset detector of Section~\ref{sec:methods-training}.
 
-Both models are evaluated on two test sets neither saw during training: the held-out OCP site imagery of Section~\ref{sec:methods-dataset} --- the headline comparison, since it is exactly the deployment domain --- and an \emph{industrial proxy} set of held-out SH17 industrial scenes and respirator images, publishable without imagery clearance. Because the class inventories differ, metrics are computed over the classes common to both maps (person, helmet, vest, gloves, and their negative states) at identical resolution and confidence thresholds. The baseline also differs in training-set size, a confound discussed in Section~\ref{sec:discussion}; the comparison measures what the public benchmark model actually delivers on plant imagery, which is the deployment-relevant question.
+Both models are evaluated on two test sets neither saw during training: the held-out OCP site imagery of Section~\ref{sec:methods-dataset} --- the headline comparison, since it is exactly the deployment domain --- and an \emph{industrial proxy} set of held-out SH17 industrial scenes and gas-mask images \cite{roboflowgasmasks}, publishable without imagery clearance. Because the class inventories differ, metrics are computed over the classes common to both maps (person, helmet, vest, gloves, and their negative states) at identical resolution and confidence thresholds. The baseline also differs in training-set size, a confound discussed in Section~\ref{sec:discussion}; the comparison measures what the public benchmark model actually delivers on plant imagery, which is the deployment-relevant question.
 
 \subsection{LLM Judge Stage}
 \label{sec:methods-judge}
