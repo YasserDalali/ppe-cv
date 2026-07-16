@@ -8,7 +8,7 @@ The central result of this section is the generic-versus-adapted comparison of S
 
 \subsection{Generic vs.\ Industrial-Adapted Model}\label{sec:results-comparison}
 
-Table~\ref{tab:comparison} holds the central experiment. The generic baseline is competitive on the construction imagery it was built for --- 58.1\% precision, 64.4\% recall, 59.1\% mAP@50 on its own validation split \cite{roboflowppe} --- so the comparison asks what survives contact with an operating chemical plant. Both models are evaluated under the protocol of Section~\ref{sec:methods-comparison} on the held-out OCP site set and on the industrial proxy set. Figure~\ref{fig:comparison} plots the headline OCP comparison.
+Table~\ref{tab:comparison} holds the central experiment. The generic baseline is competitive on the construction imagery it was built for (58.1\% precision, 64.4\% recall, 59.1\% mAP@50 on its own validation split \cite{roboflowppe}), so the comparison asks what survives contact with an operating chemical plant. Both models are evaluated under the protocol of Section~\ref{sec:methods-comparison} on the held-out OCP site set and on the industrial proxy set. Figure~\ref{fig:comparison} plots the headline OCP comparison.
 
 \begin{table}[t]
 \caption{Central experiment: generic construction-benchmark detector vs.\ industrial-adapted model. Shared-class metrics per the protocol of Section~\ref{sec:methods-comparison}; cross-domain values pending the evaluation rerun.}
@@ -158,4 +158,4 @@ Class support shapes these figures: helmet holds \phX validation instances again
 
 Single-frame latency on a Tesla T4-class GPU is \phX~ms end to end: \phX~ms preprocessing, \phX~ms inference, and \phX~ms postprocessing at $640\times640$ resolution. At an analysis rate of \phX frames per second per camera, one GPU of this class sustains approximately \phX concurrent camera feeds, before any batching across streams.
 
-The model is small --- 3.0M parameters, 8.1 GFLOPs, a 6.3~MB weight file \cite{ultralytics2023}, in line with edge-oriented PPE deployments \cite{edgeyolo2024} --- so the detection workload for a multi-camera installation concentrates on one commodity GPU server on the existing network, with no per-camera hardware. The judge adds latency only on the flagged-detection path, orders of magnitude sparser than the frame stream, so detector throughput governs feed capacity.
+The model is small (3.0M parameters, 8.1 GFLOPs, a 6.3~MB weight file \cite{ultralytics2023}), in line with edge-oriented PPE deployments \cite{edgeyolo2024}, so the detection workload for a multi-camera installation concentrates on one commodity GPU server on the existing network, with no per-camera hardware. The judge adds latency only on the flagged-detection path, orders of magnitude sparser than the frame stream, so detector throughput governs feed capacity.
