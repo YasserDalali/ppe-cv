@@ -4,7 +4,7 @@
 % training rerun (fixed SH17 remap + gas-mask class). Drop numbers in from the
 % rerun log; do not reuse figures from the earlier fusion run.
 
-The central result of this section is the generic-versus-adapted comparison of Section~\ref{sec:results-comparison}: identical evaluation imagery, one detector trained only on the public construction benchmark, one adapted for industrial and chemical conditions. Around that experiment, the section reports the adapted detector's aggregate and per-class behavior (Sections~\ref{sec:results-training}--\ref{sec:results-perclass}: \phX\% precision, \phX\% recall, \phX\% mAP@50 at \phX~ms per frame on a Tesla T4-class GPU), qualitative case studies of the LLM judge (Section~\ref{sec:results-cases}), error structure (Section~\ref{sec:results-errors}), and runtime feasibility (Section~\ref{sec:results-runtime}).
+The central result of this section is the generic-versus-adapted comparison of Section~\ref{sec:results-comparison}: identical evaluation imagery, one detector trained only on the public construction benchmark, one adapted for industrial and chemical conditions. The section then reports the adapted detector's aggregate and per-class behavior (\phX\% precision, \phX\% recall, \phX\% mAP@50 at \phX~ms per frame on a Tesla T4-class GPU), judge case studies, error structure, and runtime feasibility.
 
 \subsection{Generic vs.\ Industrial-Adapted Model}\label{sec:results-comparison}
 
@@ -38,7 +38,7 @@ Adapted (ours) & OCP site imagery & \phX & \phX & \phX \\
 % mark every value as a placeholder until then.
 \begin{tikzpicture}
 \begin{axis}[
-  width=\columnwidth, height=4.6cm,
+  width=\columnwidth, height=3.8cm,
   ybar, bar width=9pt,
   ymin=0, ymax=100,
   ylabel={\footnotesize \%},
@@ -64,7 +64,7 @@ Beyond aggregate metrics, Figure~\ref{fig:ocp-compare} compares the two models q
 
 \begin{figure}[t]
 \centering
-\fbox{\parbox[c][4cm][c]{0.9\columnwidth}{\centering Placeholder: side-by-side detections,\\generic benchmark model vs.\ industrial-adapted model,\\on identical OCP site imagery.}}
+\fbox{\parbox[c][2.4cm][c]{0.9\columnwidth}{\centering Placeholder: side-by-side detections,\\generic vs.\ industrial-adapted model,\\on identical OCP site imagery.}}
 \caption{Generic vs.\ industrial-adapted model on identical site imagery. TODO: replace placeholder once cleared site frames are available for publication.}
 \label{fig:ocp-compare}
 \end{figure}
@@ -79,12 +79,12 @@ Beyond aggregate metrics, Figure~\ref{fig:ocp-compare} compares the two models q
 \label{fig:dashboard}
 \end{figure}
 
-Figure~\ref{fig:dashboard} summarizes the \phX-epoch training run at $640\times640$ input resolution with batch size 16. Box, classification, and distribution focal (DFL) losses decline from \phX, \phX, and \phX at the first epoch to \phX, \phX, and \phX at the final epoch, with validation losses tracking the training curves throughout. Precision and recall stabilize after approximately \phX epochs at \phX\% and \phX\% respectively. The final model attains \phX\% mAP@50 and \phX\% mAP@50--95 on the validation split. All headline values are taken from the best checkpoint (\texttt{best.pt}), selected on validation mAP@50--95. Unless noted otherwise, reported metrics use the \phX split of the fused dataset; the same split is used consistently across Table~\ref{tab:perclass} and the error analysis of Section~\ref{sec:results-errors}.
+Figure~\ref{fig:dashboard} summarizes the \phX-epoch training run. Box, classification, and distribution focal (DFL) losses decline from \phX, \phX, and \phX to \phX, \phX, and \phX, with validation losses tracking training throughout; precision and recall stabilize after approximately \phX epochs at \phX\% and \phX\%, and the final model attains \phX\% mAP@50 and \phX\% mAP@50--95. All headline values come from the best checkpoint (\texttt{best.pt}); unless noted otherwise, metrics use the \phX split of the fused dataset, consistently across Table~\ref{tab:perclass} and Section~\ref{sec:results-errors}.
 % TODO: decide val split vs. held-out test split for headline tables (structure.md open item); a held-out test set is the stronger claim.
 
 \subsection{Detection Performance by Class}\label{sec:results-perclass}
 
-Table~\ref{tab:perclass} breaks performance down by class. The fused dataset inherits markedly uneven per-class support from its source corpora \cite{roboflowppe, ahmad2024sh17}: person, helmet, and vest instances dominate, while negative-state classes (no\_helmet, no\_gloves, no\_goggle) and the gas-mask class introduced by this work's augmentation have far fewer validation instances. Rows for low-support classes should therefore be read alongside the support caveats in Section~\ref{sec:results-errors}, where the imbalance and its consequences are examined directly.
+Table~\ref{tab:perclass} breaks performance down by class. The fused dataset inherits uneven per-class support from its sources \cite{roboflowppe, ahmad2024sh17}: person, helmet, and vest dominate, while negative-state classes and gas mask have far fewer validation instances; low-support rows should be read alongside the caveats of Section~\ref{sec:results-errors}.
 
 \begin{table}[t]
 \caption{Per-class detection performance on the validation split. All values pending training rerun.}
@@ -112,16 +112,16 @@ gas mask    & \phX & \phX & \phX \\
 
 \subsection{LLM Judge Qualitative Case Studies}\label{sec:results-cases}
 
-The judge stage is evaluated qualitatively. The protocol selects three to five real flagged detections from pilot footage and, for each, presents the detection crop, the verbatim \texttt{reason} field returned by the Qwen2.5-VL judge \cite{qwen25vl}, and the final verdict. The case set is chosen to include at least one false positive that the judge correctly rejects (for example, a glare or occlusion artifact of the kind that drives false-alarm load in manual CCTV monitoring \cite{donald2015}) and at least one genuine violation that the judge confirms, so that both failure-suppression and violation-preservation behavior are visible on real inputs. Table~\ref{tab:cases} holds the case scaffold; the corresponding detection crops appear in Fig.~\ref{fig:cases-crops}.
+The judge stage is evaluated qualitatively: three to five real flagged detections from pilot footage, each presented with its detection crop, the verbatim \texttt{reason} field returned by the Qwen2.5-VL judge \cite{qwen25vl}, and the final verdict. The set includes at least one false positive the judge correctly rejects (glare or occlusion artifacts of the kind that drive false-alarm load \cite{donald2015}) and at least one genuine violation it confirms, so both failure-suppression and violation-preservation are visible on real inputs. Table~\ref{tab:cases} holds the case scaffold; detection crops appear in Fig.~\ref{fig:cases-crops}.
 
 \begin{figure}[t]
 \centering
-\fbox{\parbox[c][3.4cm][c]{0.9\columnwidth}{\centering Placeholder: detection crops for the judge case studies\\of Table~\ref{tab:cases} (pending imagery clearance).}}
+\fbox{\parbox[c][2.2cm][c]{0.9\columnwidth}{\centering Placeholder: detection crops for the judge case studies\\of Table~\ref{tab:cases} (pending imagery clearance).}}
 \caption{Detection crops accompanying the judge case studies of Table~\ref{tab:cases}. TODO: insert once site imagery is cleared.}
 \label{fig:cases-crops}
 \end{figure}
 
-We state explicitly: no quantitative false-positive-reduction figure is claimed for the judge stage anywhere in this paper. The case studies demonstrate the mechanism operating on real detections; they do not measure its aggregate effect. Quantitative benchmarking of the judge, over a labeled alert set with a confirm/reject confusion matrix, is future work (Section~\ref{sec:discussion}).
+No quantitative false-positive-reduction figure is claimed for the judge anywhere in this paper: the case studies demonstrate the mechanism on real detections, not its aggregate effect, and benchmarking over a labeled alert set is future work (Section~\ref{sec:discussion}).
 
 \begin{table*}[t]
 \caption{LLM judge case studies: flagged detections with verbatim judge output. TODO: fill from pilot judge runs; include detection crops as an accompanying figure once imagery is cleared.}
@@ -134,8 +134,6 @@ Case & Flagged class & Judge verdict & Judge reason (verbatim) \\
 1 & TODO & TODO & TODO \\
 2 & TODO & TODO & TODO \\
 3 & TODO & TODO & TODO \\
-4 & TODO & TODO & TODO \\
-5 & TODO & TODO & TODO \\
 \bottomrule
 \end{tabular}
 \end{table*}
@@ -148,16 +146,16 @@ Confusion concentrates among visually similar class pairs (Fig.~\ref{fig:confusi
 \centering
 % TODO: replace with the normalized confusion matrix exported from the rerun
 % (Ultralytics confusion_matrix_normalized.png), cropped to the ten fused classes.
-\fbox{\parbox[c][4.2cm][c]{0.9\columnwidth}{\centering Placeholder: normalized confusion matrix\\of the adapted detector on the fused validation split\\(from the training rerun).}}
-\caption{Normalized confusion matrix of the adapted detector (placeholder pending the training rerun). Per the text, confusion is expected to concentrate within equipment/absence pairs and among small, distant objects.}
+\fbox{\parbox[c][2.6cm][c]{0.9\columnwidth}{\centering Placeholder: normalized confusion matrix\\of the adapted detector on the fused validation split\\(from the training rerun).}}
+\caption{Normalized confusion matrix of the adapted detector (placeholder pending the training rerun).}
 \label{fig:confusion}
 \end{figure}
 
-Class support shapes these figures. The helmet class holds \phX validation instances against \phX for no\_helmet, so the two rows in Table~\ref{tab:perclass} rest on very different evidence bases, and the same asymmetry applies to the other equipment/absence pairs. Boots, no\_goggle, and gas mask each fall below \phX validation instances; their per-class metrics carry wide uncertainty and are treated as indicative rather than conclusive. How much of the observed error structure stems from the multi-source fusion itself, from the nano-scale model capacity, or from support imbalance is a question the per-class numbers will settle once the rerun completes.
+Class support shapes these figures: helmet holds \phX validation instances against \phX for no\_helmet, and the same asymmetry applies to the other equipment/absence pairs. Boots, no\_goggle, and gas mask each fall below \phX instances, so their metrics are indicative rather than conclusive. How much of the error structure stems from multi-source fusion, nano-scale capacity, or support imbalance is a question the rerun's per-class numbers will settle.
 % TODO: after rerun, decide framing per [OPEN: results_posture] in chapter-plan.md (own weak classes openly vs. relax the caveats).
 
 \subsection{Runtime and Deployment Feasibility}\label{sec:results-runtime}
 
 Single-frame latency on a Tesla T4-class GPU is \phX~ms end to end: \phX~ms preprocessing, \phX~ms inference, and \phX~ms postprocessing at $640\times640$ resolution. At an analysis rate of \phX frames per second per camera, one GPU of this class sustains approximately \phX concurrent camera feeds, before any batching across streams.
 
-The model itself is small: YOLOv8n comprises 3.0M parameters at 8.1 GFLOPs, with a 6.3~MB weight file \cite{ultralytics2023}, in line with edge-oriented PPE deployments \cite{edgeyolo2024}. Together these figures support the retrofit argument. A site's existing cameras keep their role as passive sensors; the entire detection workload for a multi-camera installation concentrates on a single commodity GPU server attached to the existing network, with no per-camera hardware and no replacement of the installed CCTV base. The judge stage adds latency only on the flagged-detection path, which is orders of magnitude sparser than the frame stream itself, so detector throughput governs feed capacity.
+The model is small --- 3.0M parameters, 8.1 GFLOPs, a 6.3~MB weight file \cite{ultralytics2023}, in line with edge-oriented PPE deployments \cite{edgeyolo2024} --- so the detection workload for a multi-camera installation concentrates on one commodity GPU server on the existing network, with no per-camera hardware. The judge adds latency only on the flagged-detection path, orders of magnitude sparser than the frame stream, so detector throughput governs feed capacity.
