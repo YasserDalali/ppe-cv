@@ -61,10 +61,16 @@ they live.
 
 ### 3. Add the private GitHub token to Colab Secrets
 
-Create a fine-grained GitHub personal access token with **Contents: Read-only**
-access to `YasserDalali/ppe-cv`. In Colab, open the key icon (**Secrets**) in
-the left sidebar, add `GITHUB_TOKEN`, paste the token as its value, and enable
-**Notebook access**. Never put this token in Drive, the notebook, or Git.
+1. GitHub → **Settings → Developer settings → Personal access tokens →
+   Fine-grained tokens → Generate**.
+2. Resource owner: **YasserDalali**. Repository access: **Only select
+   repositories** → `ppe-cv`.
+3. Permissions → Repository → **Contents: Read-only**. Generate and copy.
+4. In Colab, open the key icon (**Secrets**), add name `GITHUB_TOKEN`, paste
+   the token, and enable **Notebook access** for this notebook.
+
+Never put this token in Drive, chat, the notebook, or Git. If it was ever
+pasted outside Colab Secrets, revoke it and create a new one.
 
 ### 4. Open the notebook
 

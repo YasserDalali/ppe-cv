@@ -16,7 +16,7 @@ def test_notebook_clones_code_from_github_and_keeps_artifacts_on_drive():
     assert "CODE = Path('/content/ppe-cv/training')" in source
     assert "DRIVE_ROOT = Path('/content/drive/MyDrive/ppe-training')" in source
     assert "userdata.get('GITHUB_TOKEN')" in source
-    assert "GIT_CONFIG_VALUE_0" in source
-    assert "Authorization: Bearer" in source
+    assert "GIT_ASKPASS" in source
+    assert "x-access-token" in source
     assert "https://{github_token}@" not in source
     assert "DRIVE_ROOT / 'training'" not in source
