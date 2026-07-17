@@ -34,14 +34,12 @@ class Config:
     work_root: Path = Path("/content/ppe-work")
     local_secrets: Path = DEFAULT_LOCAL_SECRETS
     # --- sources (Roboflow slugs verified by scripts/check_sources.py) ---
-    # Universe URL: universe.roboflow.com/datasetppe-8juj2/ppe_detection-dnfen
-    # API accepts both `datasetppe` and `datasetppe-8juj2`.
-    # NOTE (2026-07-17): all CDN export zips for this public project return GCS
-    # NoSuchKey — fork into your workspace (or drop a manual YOLOv8 zip under
-    # raw/roboflow_ppe/) before Step 1; see GUIDE.md.
-    ppe_workspace: str = "datasetppe"
-    ppe_project: str = "ppe_detection-dnfen"
-    ppe_version: int = 3
+    # NOTE (2026-07-17): the original datasetppe/ppe_detection-dnfen v3 CDN
+    # export returns GCS NoSuchKey — forked into yasser-dalali/ppe_detection-
+    # dnfen-tpjga v1 (308 images, plain YOLOv8 export) to work around it.
+    ppe_workspace: str = "yasser-dalali"
+    ppe_project: str = "ppe_detection-dnfen-tpjga"
+    ppe_version: int = 1
     gasmask_workspace: str = "daniil-yarmov"
     gasmask_project: str = "gas-masks"
     gasmask_version: int = 1                    # pinned: v1, 384 images, no substitute
