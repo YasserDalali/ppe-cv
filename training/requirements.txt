@@ -1,0 +1,17 @@
+# Pinned pipeline dependencies (Colab). Local test venv uses the same pins for the
+# light packages; heavy packages (ultralytics/roboflow/kaggle) are lazy-imported
+# and only needed at pipeline runtime — pins chosen to resolve on Colab without
+# fighting each other (see GUIDE.md).
+#
+# `inference` is intentionally NOT here: Roboflow inference 0.53 wants
+# numpy<2.3 + pillow<12 + supervision<0.26, which conflicts with ultralytics /
+# supervision 0.29. Model B falls back to the hosted REST API when inference
+# is missing (ppe.predict.RoboflowPredictor).
+ultralytics==8.4.95
+roboflow~=1.2
+kaggle~=1.7
+supervision==0.29.1
+pytest==9.1.1
+PyYAML==6.0.3
+numpy>=1.23.0,<2.5.0
+pillow>=9.4.0,<13.0.0

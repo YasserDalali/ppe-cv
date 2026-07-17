@@ -12,7 +12,7 @@
 2. Remap SH17 labels (IMPORTANT — old run broke here)
 3. Merge into one 10-class dataset + split train/val/test
 4. Train **Model A** (fused / “ours”)
-5. Train or load **Model B** (Roboflow-only / “generic”)
+5. **Model B** (generic) — we do **NOT** train it; we run the existing hosted Roboflow model
 6. Eval both on the same test images → fill the comparison table
 7. Run the LLM judge on 3–5 examples
 8. Zip everything in “What to send back”
@@ -46,7 +46,17 @@ We want to show **A beats B** on plant images.
 | 1   | [Roboflow PPE-Detection](https://universe.roboflow.com) | Generic model + part of fusion |
 | 2   | **SH17** | Industrial PPE classes |
 | 3   | [**Roboflow gas masks v1**](https://universe.roboflow.com/daniil-yarmov/gas-masks/dataset/1) (Daniil Yarmov, **384 images**) | Add `gas mask` class — **use this one, don’t pick another** |
-| 4   | **OCP site images** (ask Amine/Yasser for access) | Real plant data — keep some images **out of training** for the test |
+| 4   | **OCP** Roboflow: workspace `yasser-dalali`, project `OCP`, **version 1**, format `yolov8` | Site plant data (domain adapter). Download with the same `ROBOFLOW_API_KEY` from `secrets.env` — **never hardcode the key** |
+
+```python
+# OCP download (key from secrets.env / env var — do not paste keys into code)
+from roboflow import Roboflow
+rf = Roboflow(api_key=os.environ["ROBOFLOW_API_KEY"])
+project = rf.workspace("yasser-dalali").project("OCP")
+dataset = project.version(1).download("yolov8")
+```
+
+OCP may skip `no_helmet` / `no_gloves` / `no_goggle` boxes — that’s fine. Keep those class **slots** in the fused 10-class map for public data; OCP just contributes zero boxes for them.
 
 
 **Final classes (exactly these 10 — no `none`):**
@@ -105,12 +115,14 @@ Use Ultralytics. Save the full training folder (`results.csv`, plots, etc.).
 
 ---
 
-## Step 5 — Model B (generic)
+## Step 5 — Model B (generic) — no training
 
-Train YOLOv8n **only** on Roboflow PPE-Detection  
-(or download their pretrained weights if you already have them).
+**Do NOT train a second model.** Model B is the **existing hosted Roboflow model**
+`ppe_detection-dnfen/3`. The pipeline runs it (inference) over our test images and
+scores it with the **same** harness as Model A.
 
-Same image size / confidence settings as Model A when you evaluate.
+- No `generic.pt` gets produced or shipped.
+- Same image size / confidence / IoU settings as Model A at eval time.
 
 Their published own-val numbers (keep as-is for the paper):
 
@@ -212,8 +224,7 @@ One zip folder: `handoff-YOURNAME-DATE.zip`
 
 ```
 handoff/
-  best.pt                 # Model A
-  generic.pt              # Model B
+  best.pt                 # Model A (fused). No generic.pt — Model B is the hosted Roboflow model
   remap.json              # SH17 → our classes
   data.yaml
   metrics.md              # filled tables above
@@ -260,6 +271,7 @@ handoff/
 
 ## Stuck?
 
-Ask for: OCP dataset access or Colab GPU help.  
+Ask for: Colab GPU help if training is slow.  
+OCP downloads from Roboflow (`yasser-dalali` / `OCP` / v1) — put `ROBOFLOW_API_KEY` in `secrets.env`, never in code.  
 Gas-mask dataset is fixed (link in Step 1) — don’t substitute another.  
 Paper draft lives in `paper/sections/` — you don’t need to edit it.
