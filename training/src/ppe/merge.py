@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 import shutil
@@ -22,6 +23,23 @@ from ppe.config import CANONICAL_CLASSES, Config
 
 class MergeError(RuntimeError):
     pass
+
+
+# Some Roboflow exports (e.g. gas-masks) concatenate every image tag into the
+# filename, producing 200+ char stems. Prefixed with "{source}__" that can
+# exceed the OS filename limit (255 bytes). Truncate + append a short hash of
+# the full original stem so names stay safe, unique, and deterministic.
+_MAX_STEM_LEN = 180
+
+
+def _safe_stem(source: str, orig_stem: str) -> str:
+    stem = f"{source}__{orig_stem}"
+    if len(stem) <= _MAX_STEM_LEN:
+        return stem
+    prefix = f"{source}__"
+    digest = hashlib.sha1(orig_stem.encode()).hexdigest()[:10]
+    keep = _MAX_STEM_LEN - len(prefix) - len(digest) - 1
+    return f"{prefix}{orig_stem[:keep]}_{digest}"
 
 
 @dataclass
@@ -149,7 +167,7 @@ def merge_and_split(cfg: Config, remapped: dict[str, Path], out_root: Path) -> S
             "test": order[n_train + n_val:],
         }
         assignments[source] = {
-            split: [(pairs[i][0], pairs[i][1], f"{source}__{pairs[i][0].stem}") for i in idxs]
+            split: [(pairs[i][0], pairs[i][1], _safe_stem(source, pairs[i][0].stem)) for i in idxs]
             for split, idxs in splits.items()
         }
         per_source[source] = {split: len(idxs) for split, idxs in splits.items()}

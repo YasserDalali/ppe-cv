@@ -71,6 +71,31 @@ def test_duplication_train_only(tmp_path):
         assert (res.dataset_dir / "train" / "labels" / f"{p.stem}.txt").is_file()
 
 
+def test_long_roboflow_filenames_are_truncated_safely(tmp_path):
+    # Roboflow exports (esp. gas-masks) can concatenate every image tag into
+    # a ~244-char stem — short enough to write to disk unprefixed, but past
+    # the OS filename limit (255 bytes) once "{source}__" (9 chars) is added.
+    # All 10 stems share the same first 240 chars (only the last 4 differ),
+    # so truncation alone can't disambiguate them — the hash suffix must.
+    def long_stem(i: int) -> str:
+        return ("tag-" * 61)[:240] + f"{i:04d}"
+
+    src = tmp_path / "remapped" / "gasmask"
+    for i in range(10):
+        stem = long_stem(i)
+        assert len(stem) == 244
+        write_png(src / "images" / f"{stem}.jpg")
+        (src / "labels").mkdir(parents=True, exist_ok=True)
+        (src / "labels" / f"{stem}.txt").write_text("9 0.5 0.5 0.2 0.2\n")
+
+    res = merge_and_split(cfg_for(tmp_path), {"gasmask": src}, tmp_path / "out")
+    all_stems = stems(res.dataset_dir / "train") | stems(res.dataset_dir / "val") | stems(res.dataset_dir / "test")
+    assert len(all_stems) == 10 + 14  # 10 originals + (7 train * (dup_factor-1)=2) dups
+    for s in base_stems(res.dataset_dir / "train") | base_stems(res.dataset_dir / "val") | base_stems(res.dataset_dir / "test"):
+        assert len(s) <= 200
+        assert s.startswith("gasmask__")
+
+
 def test_holdouts_disjoint_and_ocp_free_proxy(tmp_path, fixture_sources):
     remapped_root = tmp_path / "remapped"
     remap_all(None, fixture_sources, remapped_root)
