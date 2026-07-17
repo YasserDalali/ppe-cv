@@ -271,7 +271,7 @@ handoff/
 
 ## Stuck?
 
-Ask for: Colab GPU help if training is slow.  
-OCP downloads from Roboflow (`yasser-dalali` / `OCP` / v1) — put `ROBOFLOW_API_KEY` in `secrets.env`, never in code.  
-Gas-mask dataset is fixed (link in Step 1) — don’t substitute another.  
+Ask for: Colab GPU help if training is slow.
+OCP downloads from Roboflow (`yasser-dalali` / `OCP` / v1) — put `ROBOFLOW_API_KEY` in `secrets.env`, never in code.
+Gas-mask dataset is fixed (link in Step 1) — don’t substitute another.
 Paper draft lives in `paper/sections/` — you don’t need to edit it.
