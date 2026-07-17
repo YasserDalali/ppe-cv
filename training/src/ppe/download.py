@@ -26,6 +26,18 @@ SOURCES = ["roboflow_ppe", "sh17", "gasmask", "ocp"]
 
 MARKER = ".complete"
 
+# NOTE (2026-07-17): this Kaggle mirror's export ships labels/*.txt but no
+# data.yaml / classes.txt / README anywhere — verified by listing the raw
+# download. Order confirmed against the "Classes" list on the dataset page
+# (kaggle.com/datasets/mugheesahmad/sh17-dataset-for-ppe-detection) and
+# cross-checked against per-id label counts (id 11 "Shoes" highest at 4018,
+# id 13 "Tools" rarest at 21 — consistent with this order).
+SH17_CLASS_NAMES = [
+    "Person", "Head", "Face", "Glasses", "Face-mask-medical", "Face-guard",
+    "Ear", "Earmuffs", "Hands", "Gloves", "Foot", "Shoes", "Safety-vest",
+    "Tools", "Helmet", "Medical-suit", "Safety-suit",
+]
+
 
 class DownloadError(RuntimeError):
     pass
@@ -253,6 +265,10 @@ def _ensure_data_yaml(source_dir: Path, name: str) -> None:
         names = [line.strip() for line in classes_txt.read_text().splitlines() if line.strip()]
         (source_dir / "data.yaml").write_text(
             yaml.safe_dump({"nc": len(names), "names": names}))
+        return
+    if name == "sh17":
+        (source_dir / "data.yaml").write_text(
+            yaml.safe_dump({"nc": len(SH17_CLASS_NAMES), "names": SH17_CLASS_NAMES}))
         return
     raise DownloadError(
         f"{name}: no data.yaml / *.yaml with names / classes.txt found under "

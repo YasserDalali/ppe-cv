@@ -6,6 +6,7 @@ from ppe.config import Config
 from ppe.download import (
     SOURCES,
     DownloadError,
+    SH17_CLASS_NAMES,
     download_all,
     ensure_source,
     validate_source,
@@ -91,6 +92,23 @@ def test_sh17_classes_txt_fallback_synthesizes_data_yaml(tmp_path, monkeypatch):
     path = ensure_source(cfg, SECRETS, "sh17")
     data = yaml.safe_load((path / "data.yaml").read_text())
     assert data["names"] == SH17_CLASSES
+
+
+def test_sh17_missing_classes_falls_back_to_hardcoded_order(tmp_path, monkeypatch):
+    cfg = cfg_for(tmp_path)
+
+    def fake_kaggle(cfg_, secrets, dest):
+        for i in range(3):
+            write_png(dest / "images" / f"sh17_{i}.png")
+            (dest / "labels").mkdir(parents=True, exist_ok=True)
+            (dest / "labels" / f"sh17_{i}.txt").write_text("0 0.5 0.5 0.2 0.2\n")
+        # no classes.txt / data.yaml — matches the real Kaggle export
+
+    monkeypatch.setattr("ppe.download._download_kaggle", fake_kaggle)
+    path = ensure_source(cfg, SECRETS, "sh17")
+    data = yaml.safe_load((path / "data.yaml").read_text())
+    assert data["names"] == SH17_CLASS_NAMES
+    assert [n.lower().replace("-", "_") for n in data["names"]] == SH17_CLASSES
 
 
 def test_download_all_returns_all_sources(tmp_path, monkeypatch):
