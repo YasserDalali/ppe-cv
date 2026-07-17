@@ -73,7 +73,7 @@ def test_ocp_failure_is_fail_fast_and_readable(tmp_path, monkeypatch):
         ensure_source(cfg, SECRETS, "ocp")
     msg = str(e.value)
     assert "OCP" in msg and "no OCP-less mode" in msg
-    assert "yasser-dalali/ocp-snzjw/1" in msg
+    assert "yasser-dalali/ocp-snzjw/2" in msg
     assert "generate" in msg.lower()  # hint: generate a version in Roboflow UI
 
 
@@ -124,7 +124,8 @@ def test_bad_zip_cleans_partial_and_hints(tmp_path, monkeypatch):
     with pytest.raises(DownloadError) as e:
         ensure_source(cfg, SECRETS, "roboflow_ppe")
     msg = str(e.value)
-    assert "BadZipFile" in msg and "stage on local disk" in msg
+    assert "BadZipFile" in msg
+    assert "manually unzip" in msg or "Fork" in msg
     assert not dest.exists()  # partial Drive folder removed
 
 
@@ -138,6 +139,45 @@ def test_promote_scratch_unwraps_nested_roboflow_layout(tmp_path):
     _promote_scratch(scratch, dest)
     assert (dest / "data.yaml").is_file()
     assert not (dest / "ppe_detection-dnfen-3").exists()
+
+
+def test_probe_roboflow_zip_detects_nosuchkey(monkeypatch):
+    from ppe.download import _probe_roboflow_zip, DownloadError
+    from io import BytesIO
+    from urllib.error import HTTPError
+
+    meta = (
+        b'{"export":{"link":"https://storage.googleapis.com/fake/yolov8.zip"},'
+        b'"progress":1}'
+    )
+
+    class FakeMeta:
+        status = 200
+        def read(self):
+            return meta
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+
+    calls = {"n": 0}
+
+    def fake_urlopen(req, timeout=60):
+        calls["n"] += 1
+        url = req.full_url if hasattr(req, "full_url") else str(req)
+        if "api.roboflow.com" in url:
+            return FakeMeta()
+        # GCS signed URL → NoSuchKey
+        raise HTTPError(url, 404, "Not Found", hdrs=None, fp=BytesIO(
+            b"<?xml version='1.0'?><Error><Code>NoSuchKey</Code>"
+            b"<Details>No such object: x/yolov8.zip</Details></Error>"
+        ))
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    with pytest.raises(DownloadError) as e:
+        _probe_roboflow_zip("k", "datasetppe", "ppe_detection-dnfen", 3)
+    assert "NoSuchKey" in str(e.value)
+    assert "Fork" in str(e.value) or "fork" in str(e.value).lower()
 
 
 def test_scratch_path_does_not_precreate_directory(tmp_path):

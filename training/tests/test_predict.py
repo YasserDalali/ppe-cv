@@ -76,7 +76,7 @@ class FakeInferenceModel:
 def test_roboflow_inference_backend_center_to_xyxy(monkeypatch, tmp_path):
     fake = FakeInferenceModel()
     monkeypatch.setattr("ppe.predict._load_inference_model", lambda mid, key: fake)
-    p = RoboflowPredictor("ppe_detection-dnfen/3", "key", conf=0.25, iou=0.5)
+    p = RoboflowPredictor("ppe_detection-dnfen/1", "key", conf=0.25, iou=0.5)
     assert p.backend == "inference"
     assert p.class_names == ["person", "helmet", "vest"]
     boxes = p.predict(tmp_path / "img.png")
@@ -102,13 +102,13 @@ def test_roboflow_falls_back_to_rest(monkeypatch, tmp_path):
     monkeypatch.setattr("ppe.predict._rest_infer", fake_rest)
     monkeypatch.setattr("ppe.predict._fetch_class_names",
                         lambda key, ws, proj, ver: ["person", "helmet"])
-    p = RoboflowPredictor("ppe_detection-dnfen/3", "key", conf=0.4, iou=0.5,
-                          metadata_coords=("datasetppe", "ppe_detection-dnfen", 3))
+    p = RoboflowPredictor("ppe_detection-dnfen/1", "key", conf=0.4, iou=0.5,
+                          metadata_coords=("datasetppe", "ppe_detection-dnfen", 1))
     assert p.backend == "rest"
     boxes = p.predict(tmp_path / "img.png")
     assert boxes.xyxy.tolist() == [[40.0, 45.0, 60.0, 55.0]]
     assert boxes.class_names == ["helmet"]
-    assert calls == [("ppe_detection-dnfen/3", 0.4, 0.5)]
+    assert calls == [("ppe_detection-dnfen/1", 0.4, 0.5)]
     assert p.class_names == ["person", "helmet"]
 
 

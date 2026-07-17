@@ -124,9 +124,28 @@ Include a pipeline figure (equivalent to *drone* Fig. 1 or *traffic* Fig. 1 bloc
 - **Split**: training/validation/test percentages (mirror *drone*'s 70/15/15 stratified format)
 - **Fusion QA (for the rerun)**: remap SH17's 17 class IDs into the fused class map before merging — the previous fusion silently dropped 2,645/6,182 train images (~43%) as "corrupt" because SH17 label IDs ≥ 10 exceeded the 10-class map. Use SH17's published 17-class list to name the numeric classes in `sh17-hmkpl`'s data.yaml first (its bare `0`–`16` names are also what produced the junk `none` class).
 
+#### 3.2.1 OCP Site Dataset (self-annotated, Roboflow project)
+
+The site-specific component described above is a self-annotated Roboflow project built from OCP CCTV imagery:
+
+- **Source images**: 207 images, all 207 annotated (100% annotation coverage), 7 classes *(class names TBD — confirm exact label list against the Roboflow project before drafting; likely a subset of the fused class map, e.g. Person + a handful of PPE/no-PPE states)*
+- **Source split**: 145 training / 41 validation / 21 test images (≈70% / 20% / 10%)
+- **Generated (post-augmentation) split**: with 2 outputs per training example, the training set expands to 290 images — 82% train / 12% valid / 6% test (290 / 41 / 21)
+- **Standalone OCP-only training run**: this generated version was also trained on its own (not fused) to establish baseline detection performance on OCP site imagery in isolation — report as an OCP-only baseline in §4.3, compared against the OCP-weighted fused model. Metrics are `[X]` placeholders until reported.
+- **Note on scale**: 207 source images is small relative to the fused public sources (Roboflow PPE-Detection + SH17); frame this explicitly in §5.3 Limitations as the reason OCP samples are up-weighted in the fused run rather than relied on alone, and as motivation for future-work dataset expansion (§6).
+
 ### 3.3 Preprocessing
 
 If applicable — image resizing to 640×640, augmentation (flip, brightness/contrast jitter to simulate dust/glare), normalization. Keep this short unless you did something comparable to *drone*'s hybrid preprocessing pipeline.
+
+**OCP dataset preprocessing/augmentation (as configured in Roboflow):**
+
+- **Auto-orient**: applied (strips EXIF rotation)
+- **Resize**: stretch to 512×512 — ⚠️ note this differs from the 640×640 resolution used for the main fused-dataset training run (§3.4); decide before drafting whether the OCP subset is resized again to 640×640 at fusion time, or whether 512×512 is the resolution for a separate OCP-only ablation (relevant to §4.3)
+- **Augmentation** (applied to expand the 207-image source set):
+  - Crop: 8% minimum – 19% maximum zoom
+  - Rotation: between −13° and +13°
+  - Brightness: between −24% and +24%
 
 ### 3.4 Model Training
 
@@ -191,6 +210,8 @@ Notes for drafting: flag low-support classes explicitly (in the previous run boo
 ### 4.3 Effect of Dataset Weighting (OCP vs. generic data)
 
 Ablation-style comparison, structured like *drone*'s "generic vs. adapted model" section (already drafted in *pitch* as "VOIR CE QUE LES MODÈLES GÉNÉRIQUES RATENT"): show side-by-side detection quality of the generic-only model vs. the OCP-weighted model on the same site images (reuse your annotated example image with red/blue boxes as Fig. X).
+
+Three-way comparison to report here: (a) generic-only model, (b) OCP-only model — trained solely on the 207-image OCP set (§3.2.1) to measure standalone baseline performance on site imagery, (c) OCP-weighted fused model. (b) isolates how much the site-specific data alone can do before fusion/weighting; metrics stay `[X]` placeholders until reported.
 
 ### 4.4 LLM Judge Qualitative Case Studies
 

@@ -34,7 +34,12 @@ class Config:
     work_root: Path = Path("/content/ppe-work")
     local_secrets: Path = DEFAULT_LOCAL_SECRETS
     # --- sources (Roboflow slugs verified by scripts/check_sources.py) ---
-    ppe_workspace: str = "datasetppe"          # fill-in; verified at runtime
+    # Universe URL: universe.roboflow.com/datasetppe-8juj2/ppe_detection-dnfen
+    # API accepts both `datasetppe` and `datasetppe-8juj2`.
+    # NOTE (2026-07-17): all CDN export zips for this public project return GCS
+    # NoSuchKey — fork into your workspace (or drop a manual YOLOv8 zip under
+    # raw/roboflow_ppe/) before Step 1; see GUIDE.md.
+    ppe_workspace: str = "datasetppe"
     ppe_project: str = "ppe_detection-dnfen"
     ppe_version: int = 3
     gasmask_workspace: str = "daniil-yarmov"
@@ -42,13 +47,14 @@ class Config:
     gasmask_version: int = 1                    # pinned: v1, 384 images, no substitute
     ocp_workspace: str = "yasser-dalali"
     # Roboflow slug for the project whose display name is "OCP" (207 images).
-    # NOTE (2026-07-17 live check): the project exists but has 0 generated
-    # versions — generate version 1 (yolov8 export) in the Roboflow UI first.
+    # Live versions: v2 exists (yolov8 export OK); v1 does not.
     ocp_project: str = "ocp-snzjw"
-    ocp_version: int = 1
+    ocp_version: int = 2
     sh17_kaggle_slug: str = "mugheesahmad/sh17-dataset-for-ppe-detection"
     # --- Model B (hosted; never trained) ---
-    generic_model_id: str = "ppe_detection-dnfen/3"
+    # Only version 1 has a trained hosted model; its published map/recall/precision
+    # match generic_published. Version 3 is dataset-only (no model endpoint).
+    generic_model_id: str = "ppe_detection-dnfen/1"
     generic_published: dict = field(default_factory=lambda: {"P": 58.1, "R": 64.4, "mAP50": 59.1})
     # --- split & sampling ---
     seed: int = 0

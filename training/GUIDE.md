@@ -26,7 +26,7 @@ than the current training epoch.
 4. **Train Model A** — YOLOv8n, 640×640, batch 16, 50 epochs on the Colab T4.
    Checkpoints are written to Drive **every epoch**.
 5. **Model B** — NOT trained. The existing hosted Roboflow model
-   (`ppe_detection-dnfen/3`) is run over the same test images.
+   (`ppe_detection-dnfen/1`) is run over the same test images.
 6. **Evaluate** — the exact same scoring code runs both models on the same
    images and classes, filling the comparison table, the per-class table,
    speed numbers, and the confusion matrix.
@@ -80,13 +80,37 @@ small notebook is uploaded. It clones the current `main` branch into the VM
 on every Run All. Do not upload `training/` to Drive; Drive stores only
 secrets, datasets, checkpoints, and results.
 
-### 5. One manual click in Roboflow (OCP dataset)
+### 5. Fix the DatasetPPE download (required — Universe CDN is broken)
 
-The OCP project (`yasser-dalali` workspace, project **OCP**) must have a
-**generated version 1**. In Roboflow: open the project → *Generate* →
-create **Version 1** with a plain **YOLOv8** export (no extra augmentations —
-the pipeline does its own). If version 1 already exists, nothing to do.
-If it's missing, Step 1 stops with an error telling you exactly this.
+Roboflow’s public project `datasetppe/ppe_detection-dnfen` still lists a
+YOLOv8 export, but every signed download URL returns GCS **NoSuchKey**
+(a ~250-byte XML error that the SDK then raises as `BadZipFile`). Gas-masks
+and your own OCP project download fine; this is specific to DatasetPPE.
+
+**Do one of the following before Run all:**
+
+**A (preferred). Fork into your workspace**
+1. Open https://universe.roboflow.com/datasetppe-8juj2/ppe_detection-dnfen
+2. *Use this Dataset* / download into workspace **yasser-dalali**.
+3. *Generate* → create a version with plain **YOLOv8** export.
+4. In Colab’s config cell (or `training/src/ppe/config.py` on `main`), set
+   `ppe_workspace`, `ppe_project`, `ppe_version` to that fork’s slugs
+   (project slug is under *Settings*, not the display name).
+
+**B. Manual zip drop on Drive**
+1. On the Universe page, download **YOLOv8** in the browser (or from a
+   fork that exports successfully).
+2. Unzip into `MyDrive/ppe-training/raw/roboflow_ppe/` so `data.yaml`
+   sits at that folder’s root (train/valid/test underneath).
+3. Create an empty file `MyDrive/ppe-training/raw/roboflow_ppe/.complete`
+   so Step 1 skips the broken CDN download.
+
+### 6. OCP dataset version
+
+Project `yasser-dalali/ocp-snzjw` — use **version 2** (already generated;
+yolov8 export works). Version 1 does not exist. If you recreate the
+project, Generate a version with plain YOLOv8 and set `ocp_version`
+accordingly.
 
 ## Running it
 

@@ -68,7 +68,7 @@ GASMASK_NAME_MAP = {
     "0": DROP,
 }
 
-# yasser-dalali/ocp-snzjw v1: Person, boots, gas mask, gloves, goggles, helmet,
+# yasser-dalali/ocp-snzjw v2: Person, boots, gas mask, gloves, goggles, helmet,
 # vest (no negative classes — those ids simply get zero boxes from OCP)
 OCP_NAME_MAP = {
     "person": "Person",

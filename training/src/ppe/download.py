@@ -82,11 +82,110 @@ def _promote_scratch(scratch: Path, dest: Path) -> None:
     shutil.copytree(root, dest)
 
 
+def _probe_roboflow_zip(api_key: str, workspace: str, project: str,
+                        version: int, fmt: str = "yolov8") -> None:
+    """Fail fast when Roboflow metadata says 'ready' but the CDN zip is gone.
+
+    DatasetPPE (and occasionally other Universe projects) return a signed GCS
+    URL whose object is missing (XML NoSuchKey, ~250 bytes). The Roboflow SDK
+    still downloads that body and then raises BadZipFile — which we used to
+    mis-blame on Google Drive FUSE. Probe the first bytes before extract.
+    """
+    from urllib.error import HTTPError, URLError
+    from urllib.request import Request, urlopen
+
+    meta_url = (
+        f"https://api.roboflow.com/{workspace}/{project}/{version}/{fmt}"
+        f"?api_key={api_key}&nocache=true"
+    )
+    try:
+        with urlopen(Request(meta_url), timeout=60) as resp:
+            status = getattr(resp, "status", 200)
+            payload = resp.read()
+    except HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")[:300]
+        raise DownloadError(
+            f"Roboflow {workspace}/{project}/{version} ({fmt}) metadata HTTP "
+            f"{exc.code}: {body}"
+        ) from exc
+    except URLError as exc:
+        raise DownloadError(
+            f"Roboflow {workspace}/{project}/{version} ({fmt}) unreachable: {exc}"
+        ) from exc
+
+    if status == 202:
+        return  # still generating — let the SDK poll/export
+
+    import json as _json
+    try:
+        data = _json.loads(payload)
+    except Exception as exc:
+        raise DownloadError(
+            f"Roboflow {workspace}/{project}/{version} ({fmt}) returned non-JSON "
+            f"metadata ({payload[:120]!r})"
+        ) from exc
+
+    if isinstance(data.get("error"), dict) or data.get("error"):
+        raise DownloadError(
+            f"Roboflow {workspace}/{project}/{version} ({fmt}): {data.get('error')}"
+        )
+
+    link = (data.get("export") or {}).get("link") or data.get("link")
+    if not link:
+        if data.get("ready") is False:
+            return
+        raise DownloadError(
+            f"Roboflow {workspace}/{project}/{version} ({fmt}): no export link in "
+            f"API response (keys={sorted(data)})"
+        )
+
+    try:
+        with urlopen(Request(link), timeout=60) as zresp:
+            head = zresp.read(64)
+    except HTTPError as exc:
+        body = exc.read()[:400]
+        detail = ""
+        if b"NoSuchKey" in body:
+            detail = (
+                " GCS object missing (NoSuchKey) — Roboflow's export CDN has no "
+                "zip for this version even though the API lists the format as "
+                "exported. Fix: open the project on Roboflow Universe → "
+                "*Use this Dataset* / fork into your workspace → Generate a new "
+                "version with YOLOv8 export → set ppe_workspace/ppe_project/"
+                "ppe_version (or ocp_*) in config to that fork. Or download the "
+                "YOLOv8 zip in the browser and unpack it to Drive "
+                f"raw/{project}/ then touch raw/<name>/.complete."
+            )
+        raise DownloadError(
+            f"Roboflow {workspace}/{project}/{version} ({fmt}) zip HTTP "
+            f"{exc.code}.{detail} body={body[:160]!r}"
+        ) from exc
+    except URLError as exc:
+        raise DownloadError(
+            f"Roboflow {workspace}/{project}/{version} ({fmt}) zip unreachable: {exc}"
+        ) from exc
+
+    if head[:2] != b"PK":
+        hint = ""
+        if b"NoSuchKey" in head or b"<Error>" in head:
+            hint = (
+                " Export zip is missing on Roboflow's CDN (stale export metadata). "
+                "Fork the Universe dataset into your workspace, generate a fresh "
+                "version, and point config at that version — or drop a manual "
+                "YOLOv8 unzip into Drive raw/<source>/ with a .complete marker."
+            )
+        raise DownloadError(
+            f"Roboflow {workspace}/{project}/{version} ({fmt}) download is not a "
+            f"zip (starts with {head[:40]!r}).{hint}"
+        )
+
+
 def _download_roboflow(cfg: Config, api_key: str, workspace: str, project: str,
                        version: int, dest: Path) -> None:
     from roboflow import Roboflow  # lazy: runtime-only dependency
 
     dest = Path(dest)
+    _probe_roboflow_zip(api_key, workspace, project, version, "yolov8")
     last_exc: Exception | None = None
     # One retry: Roboflow/CDN occasionally serves a truncated body.
     for attempt in range(2):
@@ -229,14 +328,22 @@ def ensure_source(cfg: Config, secrets: dict, name: str) -> Path:
                 "OCP images are part of the fusion and the headline test set — "
                 "there is no OCP-less mode. If the version does not exist yet, "
                 "generate it in the Roboflow UI (project OCP -> Generate -> "
-                "Create version 1, yolov8 export) and re-run."
+                "Create version with yolov8 export) and re-run."
             ) from exc
         hint = ""
-        if isinstance(exc, zipfile.BadZipFile) or "BadZipFile" in type(exc).__name__:
+        msg = str(exc)
+        if (
+            isinstance(exc, zipfile.BadZipFile)
+            or "BadZipFile" in type(exc).__name__
+            or "NoSuchKey" in msg
+            or "not a zip" in msg
+        ):
             hint = (
-                " Hint: zip was corrupt (common when extracting on Google Drive). "
-                f"Delete Drive folder raw/{name}/ if it remains, re-upload this "
-                "training/ code, and re-run — downloads now stage on local disk first."
+                " Hint: Roboflow returned a non-zip body (often GCS NoSuchKey on a "
+                "stale Universe export), not a Drive corruption issue. Fork the "
+                "dataset into your workspace and generate a fresh version, or "
+                f"manually unzip a YOLOv8 download into Drive raw/{name}/ and "
+                f"touch raw/{name}/.complete."
             )
         raise DownloadError(
             f"{name}: download failed ({type(exc).__name__}: {exc}).{hint}"
