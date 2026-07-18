@@ -60,17 +60,28 @@ class Config:
     val_frac: float = 0.15
     test_frac: float = 0.15
     ocp_dup_factor: int = 3        # train split only
-    gasmask_dup_factor: int = 3    # train split only
+    # OCP is the target deployment domain (207 site photos) — worth the x3
+    # weight. Gas-masks is a generic public set standing in for one class;
+    # it doesn't deserve the same boost, and every duplicate there is pure
+    # epoch-time cost with no OCP-relevance payoff.
+    gasmask_dup_factor: int = 1    # train split only
     # SH17 (Kaggle) dwarfs the other 3 curated sources combined (~900 images)
     # and both remap time and epoch time scale with it directly. Common
     # classes (Person, gloves, vest, no_helmet) already hit mAP50 > 0.85 with
     # a few hundred examples, so a random cap on SH17's train slice trims
-    # mostly-redundant common-class images without touching val/test
-    # (evaluation stays on the full source). The split decision (and this
-    # cap) happens on raw filenames before remap runs, so capped-out images
-    # are never remapped either — see merge.compute_raw_split. None disables
-    # the cap. Train split only.
+    # mostly-redundant common-class images. The split decision (and this cap)
+    # happens on raw filenames before remap runs, so capped-out images are
+    # never remapped either — see merge.compute_raw_split. None disables the
+    # cap. Train split only.
     sh17_train_cap: int | None = 1500
+    # val/test used to stay uncapped ("evaluate on the full source"), but
+    # Ultralytics validates every epoch, so an uncapped SH17 val split was
+    # driving most of the per-epoch cost even after the train cap. Capped
+    # proportionally to sh17_train_cap (val/test fracs are each ~0.15 vs.
+    # train's 0.70, so ~1/5 of the train cap keeps the same relative size).
+    # None disables the cap (full source, pre-cap behavior).
+    sh17_val_cap: int | None = 300
+    sh17_test_cap: int | None = 300
     # --- training ---
     model_name: str = "yolov8n.pt"
     imgsz: int = 640

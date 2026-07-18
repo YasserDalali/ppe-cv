@@ -190,29 +190,34 @@ def _unzip_with_progress(zip_path: Path, dest: Path) -> None:
 
 def _split_indices(cfg: Config, n: int, source: str) -> dict[str, list[int]]:
     """Deterministic 70/15/15 index split (name-sorted input assumed), with
-    the SH17 train cap applied. Shared by the raw pre-remap split (so capped
-    images are never remapped) and merge_and_split's own fallback path."""
+    the SH17 train/val/test caps applied. Shared by the raw pre-remap split
+    (so capped images are never remapped) and merge_and_split's own fallback
+    path."""
     rng = random.Random(cfg.seed)
     order = list(range(n))
     rng.shuffle(order)
     n_train = int(n * cfg.train_frac)
     n_val = int(n * cfg.val_frac)
     train_idx = order[:n_train]
-    if source == "sh17" and cfg.sh17_train_cap is not None and len(train_idx) > cfg.sh17_train_cap:
-        train_idx = train_idx[:cfg.sh17_train_cap]
-    return {
-        "train": train_idx,
-        "val": order[n_train:n_train + n_val],
-        "test": order[n_train + n_val:],
-    }
+    val_idx = order[n_train:n_train + n_val]
+    test_idx = order[n_train + n_val:]
+    if source == "sh17":
+        if cfg.sh17_train_cap is not None and len(train_idx) > cfg.sh17_train_cap:
+            train_idx = train_idx[:cfg.sh17_train_cap]
+        if cfg.sh17_val_cap is not None and len(val_idx) > cfg.sh17_val_cap:
+            val_idx = val_idx[:cfg.sh17_val_cap]
+        if cfg.sh17_test_cap is not None and len(test_idx) > cfg.sh17_test_cap:
+            test_idx = test_idx[:cfg.sh17_test_cap]
+    return {"train": train_idx, "val": val_idx, "test": test_idx}
 
 
 def compute_raw_split(cfg: Config, source: str, raw_dir: Path) -> dict[str, list[str]]:
     """Decide train/val/test membership (by filename) straight from the raw
     downloaded source, before remap runs. This lets the caller remap only the
-    images that will actually be used — SH17's train slice gets capped at
-    ``cfg.sh17_train_cap``, and remapping the rest just to discard them was
-    wasted work (SH17 dwarfs the other 3 sources combined)."""
+    images that will actually be used — SH17's train/val/test slices get
+    capped at ``cfg.sh17_train_cap``/``sh17_val_cap``/``sh17_test_cap``, and
+    remapping the rest just to discard them was wasted work (SH17 dwarfs the
+    other 3 sources combined)."""
     from ppe.remap import _find_images  # local import: avoids module cycle
 
     images = _find_images(raw_dir)

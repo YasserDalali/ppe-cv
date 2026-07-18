@@ -79,6 +79,35 @@ def test_sh17_train_cap_none_disables_cap(tmp_path):
     assert len(stems(res.dataset_dir / "train")) == 14
 
 
+def test_sh17_val_and_test_caps(tmp_path):
+    src = make_remapped_source(tmp_path / "remapped", "sh17", 20)
+    cfg = Config(drive_root=tmp_path / "drive", work_root=tmp_path / "work",
+                sh17_val_cap=1, sh17_test_cap=2)
+    res = merge_and_split(cfg, {"sh17": src}, tmp_path / "out")
+    # uncapped would be 14/3/3 (see test_split_ratios_and_prefixes)
+    assert len(stems(res.dataset_dir / "train")) == 14
+    assert len(stems(res.dataset_dir / "val")) == 1
+    assert len(stems(res.dataset_dir / "test")) == 2
+
+
+def test_sh17_val_and_test_caps_none_disables(tmp_path):
+    src = make_remapped_source(tmp_path / "remapped", "sh17", 20)
+    cfg = Config(drive_root=tmp_path / "drive", work_root=tmp_path / "work",
+                sh17_val_cap=None, sh17_test_cap=None)
+    res = merge_and_split(cfg, {"sh17": src}, tmp_path / "out")
+    assert len(stems(res.dataset_dir / "val")) == 3
+    assert len(stems(res.dataset_dir / "test")) == 3
+
+
+def test_sh17_val_test_caps_do_not_affect_other_sources(tmp_path):
+    src = make_remapped_source(tmp_path / "remapped", "ocp", 20)
+    cfg = Config(drive_root=tmp_path / "drive", work_root=tmp_path / "work",
+                sh17_val_cap=1, sh17_test_cap=1)
+    res = merge_and_split(cfg, {"ocp": src}, tmp_path / "out")
+    assert len(stems(res.dataset_dir / "val")) == 3
+    assert len(stems(res.dataset_dir / "test")) == 3
+
+
 def test_compute_raw_split_caps_sh17_train_only(tmp_path):
     raw = make_remapped_source(tmp_path / "raw", "sh17", 20)  # same images/labels layout raw
     cfg = Config(drive_root=tmp_path / "drive", work_root=tmp_path / "work", sh17_train_cap=5)
@@ -126,12 +155,17 @@ def test_ensure_prepared_skips_remap_for_capped_sh17_images(tmp_path, fixture_so
 
 
 def test_duplication_train_only(tmp_path):
+    # gasmask_dup_factor=3 here (overriding the default) to prove the
+    # duplication mechanism generalizes to any configured source, not just
+    # OCP's default weighting.
     root = tmp_path / "remapped"
     remapped = {
         "ocp": make_remapped_source(root, "ocp", 10),
         "gasmask": make_remapped_source(root, "gasmask", 10, cls_id=9),
     }
-    res = merge_and_split(cfg_for(tmp_path), remapped, tmp_path / "out")
+    cfg = Config(drive_root=tmp_path / "drive", work_root=tmp_path / "work",
+                gasmask_dup_factor=3)
+    res = merge_and_split(cfg, remapped, tmp_path / "out")
     train = stems(res.dataset_dir / "train")
     ocp_train = [s for s in train if s.startswith("ocp__")]
     gm_train = [s for s in train if s.startswith("gasmask__")]
@@ -144,6 +178,15 @@ def test_duplication_train_only(tmp_path):
     # every dup has a matching label file
     for p in (res.dataset_dir / "train" / "images").iterdir():
         assert (res.dataset_dir / "train" / "labels" / f"{p.stem}.txt").is_file()
+
+
+def test_gasmask_not_duplicated_by_default(tmp_path):
+    root = tmp_path / "remapped"
+    remapped = {"gasmask": make_remapped_source(root, "gasmask", 10, cls_id=9)}
+    res = merge_and_split(cfg_for(tmp_path), remapped, tmp_path / "out")
+    train = stems(res.dataset_dir / "train")
+    assert len(train) == 7  # int(10*0.7), no dups
+    assert not any("__dup" in s for s in train)
 
 
 def test_long_roboflow_filenames_are_truncated_safely(tmp_path):
@@ -163,7 +206,12 @@ def test_long_roboflow_filenames_are_truncated_safely(tmp_path):
         (src / "labels").mkdir(parents=True, exist_ok=True)
         (src / "labels" / f"{stem}.txt").write_text("9 0.5 0.5 0.2 0.2\n")
 
-    res = merge_and_split(cfg_for(tmp_path), {"gasmask": src}, tmp_path / "out")
+    # gasmask_dup_factor=3 override: exercises the __dupN naming path
+    # together with the truncation logic, even though gasmask isn't
+    # duplicated by default anymore.
+    cfg = Config(drive_root=tmp_path / "drive", work_root=tmp_path / "work",
+                gasmask_dup_factor=3)
+    res = merge_and_split(cfg, {"gasmask": src}, tmp_path / "out")
     all_stems = stems(res.dataset_dir / "train") | stems(res.dataset_dir / "val") | stems(res.dataset_dir / "test")
     assert len(all_stems) == 10 + 14  # 10 originals + (7 train * (dup_factor-1)=2) dups
     for s in base_stems(res.dataset_dir / "train") | base_stems(res.dataset_dir / "val") | base_stems(res.dataset_dir / "test"):
@@ -201,7 +249,7 @@ def test_data_yaml_and_summary(tmp_path, fixture_sources):
     summary = json.loads((tmp_path / "out" / "split_summary.json").read_text())
     assert summary == res.summary
     assert summary["seed"] == 0
-    assert summary["dup_factors"] == {"ocp": 3, "gasmask": 3}
+    assert summary["dup_factors"] == {"ocp": 3, "gasmask": 1}
     for source in fixture_sources:
         per = summary["per_source"][source]
         for split in ("train", "val", "test"):
