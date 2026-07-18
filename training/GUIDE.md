@@ -12,24 +12,28 @@ than the current training epoch.
    the public Roboflow PPE set, SH17 (from Kaggle), the gas-masks set
    (v1, 384 images — fixed, don't substitute), and the OCP site photos
    (from Roboflow project `OCP`). Each source is downloaded once, ever.
-2. **Remap** — rewrites every label file onto our single 10-class list
-   (`Person, helmet, vest, gloves, boots, goggles, no_helmet, no_gloves,
-   no_goggle, gas mask`) by **class name**. If anything can't be mapped the
-   run stops loudly — no silent data loss (the old run lost 43% of images
-   this way). The mapping is saved as `remap.json`.
-3. **Merge + split** — one fused dataset, split 70/15/15 train/val/test
-   with a fixed seed (same split every run). OCP and gas-mask train images
-   are physically duplicated ×3 so the model sees them more often. Two extra
-   held-out sets are built: **ocp_test** (OCP images never trained on) and
+2. **Remap** — the 70/15/15 train/val/test membership (fixed seed, same
+   split every run) is decided from the raw filenames *first*; SH17's train
+   slice is capped at 1,500 images (`sh17_train_cap` in `config.py`) at this
+   point — it dwarfs the other 3 curated sources and both remapping and
+   training time scale with it directly, so images cut by the cap are never
+   remapped in the first place. Only images that survive the split+cap then
+   get their labels rewritten onto our single 10-class list (`Person,
+   helmet, vest, gloves, boots, goggles, no_helmet, no_gloves, no_goggle,
+   gas mask`) by **class name** — val/test still use the full SH17 source.
+   If anything can't be mapped the run stops loudly — no silent data loss
+   (the old run lost 43% of images this way). The mapping is saved as
+   `remap.json`.
+3. **Merge + split** — copies the already-decided split's images/labels into
+   one fused dataset. OCP and gas-mask train images are physically
+   duplicated ×3 so the model sees them more often. Two extra held-out sets
+   are built: **ocp_test** (OCP images never trained on) and
    **industrial_proxy** (SH17 + gas-mask test images, no OCP). Exact counts
    land in `split_summary.json`.
 4. **Train Model A** — YOLOv8n, 640×640, batch 16, up to 50 epochs (stops
    early if val mAP hasn't improved in 20 epochs) on the Colab T4.
-   Checkpoints are written to Drive **every epoch**. SH17's train slice is
-   randomly capped at 1,500 images (`sh17_train_cap` in `config.py`) — it
-   dwarfs the other 3 curated sources and epoch time scales with it
-   directly; val/test still evaluate on the full SH17 source. Raise or set
-   to `None` to use all of SH17 if you have the GPU time.
+   Checkpoints are written to Drive **every epoch**. Raise `sh17_train_cap`
+   or set it to `None` to use all of SH17 if you have the GPU time.
 5. **Model B** — NOT trained. The existing hosted Roboflow model
    (`ppe_detection-dnfen/1`) is run over the same test images.
 6. **Evaluate** — the exact same scoring code runs both models on the same

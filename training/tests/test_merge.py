@@ -8,7 +8,7 @@ import yaml
 
 from conftest import write_png
 from ppe.config import CANONICAL_CLASSES, Config
-from ppe.merge import ensure_prepared, merge_and_split, zip_dir
+from ppe.merge import compute_raw_split, ensure_prepared, merge_and_split, zip_dir
 from ppe.remap import remap_all
 
 SECRETS = {"ROBOFLOW_API_KEY": "k", "KAGGLE_USERNAME": "u", "KAGGLE_KEY": "kk"}
@@ -77,6 +77,52 @@ def test_sh17_train_cap_none_disables_cap(tmp_path):
     cfg = Config(drive_root=tmp_path / "drive", work_root=tmp_path / "work", sh17_train_cap=None)
     res = merge_and_split(cfg, {"sh17": src}, tmp_path / "out")
     assert len(stems(res.dataset_dir / "train")) == 14
+
+
+def test_compute_raw_split_caps_sh17_train_only(tmp_path):
+    raw = make_remapped_source(tmp_path / "raw", "sh17", 20)  # same images/labels layout raw
+    cfg = Config(drive_root=tmp_path / "drive", work_root=tmp_path / "work", sh17_train_cap=5)
+    split = compute_raw_split(cfg, "sh17", raw)
+    assert len(split["train"]) == 5  # uncapped would be 14 (int(20*0.7))
+    assert len(split["val"]) == 3
+    assert len(split["test"]) == 3
+
+
+def test_compute_raw_split_matches_merge_and_split_default(tmp_path):
+    """Splitting raw filenames up front must land the same membership as
+    merge_and_split's own (post-remap) shuffle+split, so pre-splitting is
+    just an optimization, not a behavior change."""
+    raw = make_remapped_source(tmp_path / "raw", "sh17", 20)
+    cfg = cfg_for(tmp_path)
+    raw_split = compute_raw_split(cfg, "sh17", raw)
+    without = merge_and_split(cfg, {"sh17": raw}, tmp_path / "out_default")
+    with_raw = merge_and_split(cfg, {"sh17": raw}, tmp_path / "out_raw",
+                               raw_split={"sh17": raw_split})
+    for split in ("train", "val", "test"):
+        assert stems(without.dataset_dir / split) == stems(with_raw.dataset_dir / split)
+
+
+def test_ensure_prepared_skips_remap_for_capped_sh17_images(tmp_path, fixture_sources, monkeypatch):
+    """The whole point: SH17 images cut by the train cap must never be copied
+    or label-rewritten by the remap step, not just excluded downstream."""
+    cfg = Config(drive_root=tmp_path / "drive", work_root=tmp_path / "work",
+                sh17_train_cap=2)
+    for name, src in fixture_sources.items():
+        dest = cfg.raw_dir / name
+        shutil.copytree(src, dest)
+        (dest / ".complete").touch()
+    monkeypatch.setattr("ppe.download._download_roboflow",
+                        lambda *a, **k: pytest.fail("network download attempted"))
+    monkeypatch.setattr("ppe.download._download_kaggle",
+                        lambda *a, **k: pytest.fail("network download attempted"))
+
+    ensure_prepared(cfg, SECRETS)
+    remap_json = json.loads((cfg.work_root / "remap.json").read_text())
+    # sh17 fixture has 17 images; uncapped split would remap all 17. With the
+    # cap at 2, only 2 (train) + val + test survive the pre-remap filter.
+    assert remap_json["reports"]["sh17"]["images_before"] < 17
+    summary = json.loads((cfg.work_root / "split_summary.json").read_text())
+    assert summary["per_source"]["sh17"]["train"] == 2
 
 
 def test_duplication_train_only(tmp_path):

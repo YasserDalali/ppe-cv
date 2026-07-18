@@ -79,6 +79,34 @@ def test_read_class_names_list_and_dict(tmp_path):
     assert read_class_names(d2) == ["x", "y"]
 
 
+def test_remap_source_keep_filters_to_named_images(fixture_sources, tmp_path):
+    out = tmp_path / "remapped" / "sh17"
+    rep = remap_source(fixture_sources["sh17"], out, SH17_NAME_MAP, "sh17",
+                       keep={"sh17_0.png", "sh17_14.png"})
+    assert rep.images_before == 2 and rep.images_after == 2
+    assert (out / "images" / "sh17_0.png").exists()
+    assert (out / "images" / "sh17_14.png").exists()
+    assert not (out / "images" / "sh17_1.png").exists()
+
+
+def test_remap_source_keep_still_hard_fails_on_unmapped_class(fixture_sources, tmp_path):
+    """Even when only remapping a subset, an unmapped class name in the
+    source's declared class list must still hard-fail (the check runs
+    against the source's full names list, not per kept image)."""
+    partial_map = {normalize_name(n): DROP for n in SH17_CLASSES[:10]}
+    with pytest.raises(RemapError):
+        remap_source(fixture_sources["sh17"], tmp_path / "out", partial_map, "sh17",
+                     keep={"sh17_0.png"})
+
+
+def test_remap_all_keep_only_applies_to_named_source(fixture_sources, tmp_path):
+    out = tmp_path / "remapped"
+    remap_all(None, fixture_sources, out, keep={"sh17": {"sh17_0.png"}})
+    assert len(list((out / "sh17" / "images").iterdir())) == 1
+    # other sources unaffected (no entry in keep)
+    assert len(list((out / "ocp" / "images").iterdir())) == 10
+
+
 def test_remap_all_four_sources_writes_remap_json(fixture_sources, tmp_path):
     out = tmp_path / "remapped"
     reports = remap_all(None, fixture_sources, out)

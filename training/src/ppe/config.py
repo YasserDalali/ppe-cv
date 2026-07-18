@@ -62,11 +62,14 @@ class Config:
     ocp_dup_factor: int = 3        # train split only
     gasmask_dup_factor: int = 3    # train split only
     # SH17 (Kaggle) dwarfs the other 3 curated sources combined (~900 images)
-    # and epoch time scales with it directly. Common classes (Person, gloves,
-    # vest, no_helmet) already hit mAP50 > 0.85 with a few hundred examples,
-    # so a random cap on SH17's train slice trims mostly-redundant common-
-    # class images without touching val/test (evaluation stays on the full
-    # source). None disables the cap. Train split only.
+    # and both remap time and epoch time scale with it directly. Common
+    # classes (Person, gloves, vest, no_helmet) already hit mAP50 > 0.85 with
+    # a few hundred examples, so a random cap on SH17's train slice trims
+    # mostly-redundant common-class images without touching val/test
+    # (evaluation stays on the full source). The split decision (and this
+    # cap) happens on raw filenames before remap runs, so capped-out images
+    # are never remapped either — see merge.compute_raw_split. None disables
+    # the cap. Train split only.
     sh17_train_cap: int | None = 1500
     # --- training ---
     model_name: str = "yolov8n.pt"

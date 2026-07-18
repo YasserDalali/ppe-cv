@@ -129,7 +129,12 @@ def _find_images(source_dir: Path) -> list[Path]:
 
 
 def remap_source(source_dir: Path, out_dir: Path, name_map: dict[str, str],
-                 source_name: str) -> RemapReport:
+                 source_name: str, keep: set[str] | None = None) -> RemapReport:
+    """``keep``, when given, restricts remapping to images whose filename is
+    in the set — used to skip images a pre-remap split decision (e.g. the
+    SH17 train cap) has already discarded, so they're never copied/rewritten
+    just to be thrown away. Class-name validation still runs against the
+    source's full declared class list either way."""
     source_dir, out_dir = Path(source_dir), Path(out_dir)
     names = read_class_names(source_dir)
 
@@ -142,6 +147,8 @@ def remap_source(source_dir: Path, out_dir: Path, name_map: dict[str, str],
         )
 
     images = _find_images(source_dir)
+    if keep is not None:
+        images = [img for img in images if img.name in keep]
     if not images:
         raise RemapError(f"{source_name}: no images found under {source_dir}")
 
@@ -201,8 +208,13 @@ def remap_source(source_dir: Path, out_dir: Path, name_map: dict[str, str],
     return rep
 
 
-def remap_all(cfg, raw_dirs: dict[str, Path], out_root: Path) -> dict[str, RemapReport]:
-    """Remap every source; write out_root/remap.json (map + drop accounting)."""
+def remap_all(cfg, raw_dirs: dict[str, Path], out_root: Path,
+             keep: dict[str, set[str]] | None = None) -> dict[str, RemapReport]:
+    """Remap every source; write out_root/remap.json (map + drop accounting).
+
+    ``keep``, when given, maps source name -> filenames to remap (see
+    ``remap_source``). Sources not present in ``keep`` are remapped in full.
+    """
     out_root = Path(out_root)
     out_root.mkdir(parents=True, exist_ok=True)
     print(f"[remap] starting {len(raw_dirs)} sources: {sorted(raw_dirs)}")
@@ -212,7 +224,8 @@ def remap_all(cfg, raw_dirs: dict[str, Path], out_root: Path) -> dict[str, Remap
         if source not in NAME_MAPS:
             raise RemapError(f"No NAME_MAP defined for source {source!r}")
         name_map = NAME_MAPS[source]
-        reports[source] = remap_source(src_dir, out_root / source, name_map, source)
+        source_keep = keep.get(source) if keep else None
+        reports[source] = remap_source(src_dir, out_root / source, name_map, source, keep=source_keep)
         maps_used[source] = {
             normalize_name(n): name_map[normalize_name(n)]
             for n in read_class_names(Path(src_dir))

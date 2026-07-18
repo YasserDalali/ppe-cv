@@ -155,10 +155,16 @@ def ensure_prepared(cfg: Config, secrets: dict) -> Path:
         build = cfg.work_root / "prepared_build"
         if build.exists():
             shutil.rmtree(build)
+        print("[prepare] splitting before remap (so capped-out SH17 images "
+              "are never remapped)…")
+        raw_split = {source: compute_raw_split(cfg, source, raw[source]) for source in raw}
+        keep = {source: {name for names in split.values() for name in names}
+                for source, split in raw_split.items()}
         print("[prepare] remapping labels by class name…")
-        remap_all(cfg, raw, build / "remapped")
+        remap_all(cfg, raw, build / "remapped", keep=keep)
         print("[prepare] merging + splitting…")
-        merge_and_split(cfg, {n: build / "remapped" / n for n in raw}, build)
+        merge_and_split(cfg, {n: build / "remapped" / n for n in raw}, build,
+                        raw_split=raw_split)
         shutil.copy2(build / "remapped" / "remap.json", build / "remap.json")
         shutil.rmtree(build / "remapped")  # intermediates stay out of the zip
         zip_dir(build, zip_path)
@@ -182,7 +188,47 @@ def _unzip_with_progress(zip_path: Path, dest: Path) -> None:
             zf.extract(m, dest)
 
 
-def merge_and_split(cfg: Config, remapped: dict[str, Path], out_root: Path) -> SplitResult:
+def _split_indices(cfg: Config, n: int, source: str) -> dict[str, list[int]]:
+    """Deterministic 70/15/15 index split (name-sorted input assumed), with
+    the SH17 train cap applied. Shared by the raw pre-remap split (so capped
+    images are never remapped) and merge_and_split's own fallback path."""
+    rng = random.Random(cfg.seed)
+    order = list(range(n))
+    rng.shuffle(order)
+    n_train = int(n * cfg.train_frac)
+    n_val = int(n * cfg.val_frac)
+    train_idx = order[:n_train]
+    if source == "sh17" and cfg.sh17_train_cap is not None and len(train_idx) > cfg.sh17_train_cap:
+        train_idx = train_idx[:cfg.sh17_train_cap]
+    return {
+        "train": train_idx,
+        "val": order[n_train:n_train + n_val],
+        "test": order[n_train + n_val:],
+    }
+
+
+def compute_raw_split(cfg: Config, source: str, raw_dir: Path) -> dict[str, list[str]]:
+    """Decide train/val/test membership (by filename) straight from the raw
+    downloaded source, before remap runs. This lets the caller remap only the
+    images that will actually be used — SH17's train slice gets capped at
+    ``cfg.sh17_train_cap``, and remapping the rest just to discard them was
+    wasted work (SH17 dwarfs the other 3 sources combined)."""
+    from ppe.remap import _find_images  # local import: avoids module cycle
+
+    images = _find_images(raw_dir)
+    if not images:
+        raise MergeError(f"{source}: no images found under {raw_dir}")
+    idx = _split_indices(cfg, len(images), source)
+    return {split: [images[i].name for i in idxs] for split, idxs in idx.items()}
+
+
+def merge_and_split(cfg: Config, remapped: dict[str, Path], out_root: Path,
+                    raw_split: dict[str, dict[str, list[str]]] | None = None) -> SplitResult:
+    """``raw_split``, when given, is the pre-remap split decision from
+    ``compute_raw_split`` (one entry per source that was pre-split) — reused
+    here instead of re-deriving it, since ``remapped`` may already contain
+    only the kept subset. Sources absent from ``raw_split`` fall back to
+    splitting whatever pairs are present (used directly by tests)."""
     out_root = Path(out_root)
     dataset_dir = out_root / "fused"
     if dataset_dir.exists():
@@ -195,23 +241,18 @@ def merge_and_split(cfg: Config, remapped: dict[str, Path], out_root: Path) -> S
     per_source: dict[str, dict[str, int]] = {}
     for source in sorted(remapped):
         pairs = _pairs(remapped[source])
-        rng = random.Random(cfg.seed)
-        order = sorted(range(len(pairs)), key=lambda i: pairs[i][0].name)
-        rng.shuffle(order)
-        n = len(pairs)
-        n_train = int(n * cfg.train_frac)
-        n_val = int(n * cfg.val_frac)
-        train_idx = order[:n_train]
-        if source == "sh17" and cfg.sh17_train_cap is not None and len(train_idx) > cfg.sh17_train_cap:
-            train_idx = train_idx[:cfg.sh17_train_cap]
-        splits = {
-            "train": train_idx,
-            "val": order[n_train:n_train + n_val],
-            "test": order[n_train + n_val:],
-        }
+        if raw_split and source in raw_split:
+            by_name = {img.name: (img, label) for img, label in pairs}
+            splits = {split: [by_name[name] for name in names]
+                      for split, names in raw_split[source].items()}
+        else:
+            order = sorted(range(len(pairs)), key=lambda i: pairs[i][0].name)
+            pairs = [pairs[i] for i in order]
+            idx = _split_indices(cfg, len(pairs), source)
+            splits = {split: [pairs[i] for i in idxs] for split, idxs in idx.items()}
         assignments[source] = {
-            split: [(pairs[i][0], pairs[i][1], _safe_stem(source, pairs[i][0].stem)) for i in idxs]
-            for split, idxs in splits.items()
+            split: [(img, label, _safe_stem(source, img.stem)) for img, label in entries]
+            for split, entries in splits.items()
         }
         per_source[source] = {split: len(idxs) for split, idxs in splits.items()}
 
