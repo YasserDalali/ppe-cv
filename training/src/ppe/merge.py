@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
+from tqdm import tqdm
 
 from ppe.config import CANONICAL_CLASSES, Config
 
@@ -71,13 +72,23 @@ def write_data_yaml(dataset_dir: Path) -> Path:
 def zip_dir(src_dir: Path, zip_path: Path) -> Path:
     """Write to a temp path and rename into place, so a disconnect mid-write
     (this can take a long time onto Drive) never leaves a partial zip_path
-    behind that a later run would mistake for a finished build."""
-    zip_path = Path(zip_path)
+    behind that a later run would mistake for a finished build.
+
+    Writes file-by-file (rather than shutil.make_archive) so there's a real
+    progress bar — this used to run silently for 30-45+ minutes onto Drive
+    FUSE with zero feedback, which is indistinguishable from a hang."""
+    src_dir, zip_path = Path(src_dir), Path(zip_path)
     zip_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_base = str(zip_path) + ".partial"  # make_archive appends ".zip" itself
-    Path(tmp_base + ".zip").unlink(missing_ok=True)
-    made = Path(shutil.make_archive(tmp_base, "zip", root_dir=src_dir))
-    made.replace(zip_path)
+    tmp_path = zip_path.with_name(zip_path.name + ".partial")
+    tmp_path.unlink(missing_ok=True)
+    files = [p for p in src_dir.rglob("*") if p.is_file()]
+    print(f"[zip] {zip_path.name}: writing {len(files)} files "
+          "(can be slow over Drive FUSE)…")
+    with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for p in tqdm(files, desc=f"[zip] {zip_path.name}", unit="file"):
+            zf.write(p, str(p.relative_to(src_dir)))
+    tmp_path.replace(zip_path)
+    print(f"[zip] {zip_path.name}: done ({zip_path.stat().st_size / 1e6:.1f} MB)")
     return zip_path
 
 
@@ -132,13 +143,21 @@ def ensure_prepared(cfg: Config, secrets: dict) -> Path:
     if zip_path.is_file() and not zipfile.is_zipfile(zip_path):
         # A prior run was interrupted (e.g. Colab disconnect) mid-write —
         # zip_dir() is atomic now, but an old partial file may still be here.
+        print(f"[prepare] {zip_path.name}: found but not a valid zip (partial "
+              "write from an interrupted run) — discarding and rebuilding")
         zip_path.unlink()
-    if not zip_path.is_file():
+    if zip_path.is_file():
+        print(f"[prepare] {zip_path.name}: cached on Drive — skipping rebuild")
+    else:
+        print("[prepare] no cached fused.zip — building the fused dataset from scratch")
+        print("[prepare] downloading/verifying raw sources…")
         raw = download_all(cfg, secrets)
         build = cfg.work_root / "prepared_build"
         if build.exists():
             shutil.rmtree(build)
+        print("[prepare] remapping labels by class name…")
         remap_all(cfg, raw, build / "remapped")
+        print("[prepare] merging + splitting…")
         merge_and_split(cfg, {n: build / "remapped" / n for n in raw}, build)
         shutil.copy2(build / "remapped" / "remap.json", build / "remap.json")
         shutil.rmtree(build / "remapped")  # intermediates stay out of the zip
@@ -147,10 +166,20 @@ def ensure_prepared(cfg: Config, secrets: dict) -> Path:
 
     local = cfg.local_dataset_dir
     if not (local / "data.yaml").is_file():
+        print(f"[prepare] restoring fused dataset from {zip_path.name} to local disk…")
         cfg.work_root.mkdir(parents=True, exist_ok=True)
-        shutil.unpack_archive(zip_path, cfg.work_root)
+        _unzip_with_progress(zip_path, cfg.work_root)
+    else:
+        print("[prepare] local fused dataset already present — skipping restore")
     write_data_yaml(local)  # refresh absolute paths for this machine
     return local
+
+
+def _unzip_with_progress(zip_path: Path, dest: Path) -> None:
+    with zipfile.ZipFile(zip_path) as zf:
+        members = zf.infolist()
+        for m in tqdm(members, desc=f"[restore] {zip_path.name}", unit="file"):
+            zf.extract(m, dest)
 
 
 def merge_and_split(cfg: Config, remapped: dict[str, Path], out_root: Path) -> SplitResult:
@@ -184,15 +213,25 @@ def merge_and_split(cfg: Config, remapped: dict[str, Path], out_root: Path) -> S
         per_source[source] = {split: len(idxs) for split, idxs in splits.items()}
 
     # copy into fused train/val/test, duplicating train pairs for weighted sources
-    for source, by_split in assignments.items():
-        factor = dup_factors.get(source, 1)
-        for split, entries in by_split.items():
-            for img, label, stem in entries:
-                _copy_pair(img, label, dataset_dir / split, stem)
-                if split == "train" and factor > 1:
-                    for k in range(1, factor):
-                        _copy_pair(img, label, dataset_dir / split, f"{stem}__dup{k}")
-        per_source[source]["train_after_dup"] = per_source[source]["train"] * factor
+    total_pairs = sum(len(e) for by_split in assignments.values() for e in by_split.values())
+    total_dups = sum(
+        len(by_split["train"]) * (dup_factors.get(source, 1) - 1)
+        for source, by_split in assignments.items()
+    )
+    print(f"[merge] copying {total_pairs} image/label pairs into train/val/test "
+          f"({total_dups} extra train duplicates for {sorted(dup_factors)})…")
+    with tqdm(total=total_pairs + total_dups, desc="[merge] copying", unit="file") as pbar:
+        for source, by_split in assignments.items():
+            factor = dup_factors.get(source, 1)
+            for split, entries in by_split.items():
+                for img, label, stem in entries:
+                    _copy_pair(img, label, dataset_dir / split, stem)
+                    pbar.update(1)
+                    if split == "train" and factor > 1:
+                        for k in range(1, factor):
+                            _copy_pair(img, label, dataset_dir / split, f"{stem}__dup{k}")
+                            pbar.update(1)
+            per_source[source]["train_after_dup"] = per_source[source]["train"] * factor
 
     write_data_yaml(dataset_dir)
 
@@ -203,6 +242,8 @@ def merge_and_split(cfg: Config, remapped: dict[str, Path], out_root: Path) -> S
     ocp_test_dir = out_root / "ocp_test"
     proxy_dir = out_root / "industrial_proxy"
     fused_val_dir = out_root / "fused_val"
+    print(f"[merge] writing eval sets: ocp_test={len(ocp_entries)} "
+          f"industrial_proxy={len(proxy_entries)} fused_val={len(val_entries)}")
     _write_eval_set(ocp_entries, ocp_test_dir)
     _write_eval_set(proxy_entries, proxy_dir)
     _write_eval_set(val_entries, fused_val_dir)
@@ -236,4 +277,5 @@ def merge_and_split(cfg: Config, remapped: dict[str, Path], out_root: Path) -> S
     }
     out_root.mkdir(parents=True, exist_ok=True)
     (out_root / "split_summary.json").write_text(json.dumps(summary, indent=2))
+    print(f"[merge] done — train={len(train_base)} val={len(val_stems)} test={len(test_stems)}")
     return SplitResult(dataset_dir, fused_val_dir, ocp_test_dir, proxy_dir, summary)

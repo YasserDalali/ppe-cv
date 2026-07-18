@@ -13,6 +13,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import yaml
+from tqdm import tqdm
 
 from ppe.config import CANONICAL_CLASSES
 
@@ -144,11 +145,12 @@ def remap_source(source_dir: Path, out_dir: Path, name_map: dict[str, str],
     if not images:
         raise RemapError(f"{source_name}: no images found under {source_dir}")
 
+    print(f"[remap] {source_name}: remapping {len(images)} images by class name…")
     rep = RemapReport(source=source_name, images_before=len(images))
     (out_dir / "images").mkdir(parents=True, exist_ok=True)
     (out_dir / "labels").mkdir(parents=True, exist_ok=True)
 
-    for img in images:
+    for img in tqdm(images, desc=f"[remap] {source_name}", unit="img"):
         if (out_dir / "images" / img.name).exists():
             raise RemapError(
                 f"{source_name}: duplicate image filename {img.name!r} across splits"
@@ -194,6 +196,8 @@ def remap_source(source_dir: Path, out_dir: Path, name_map: dict[str, str],
             f"{source_name}: box accounting broken: {rep.boxes_before} != "
             f"{rep.boxes_after} kept + {rep.boxes_dropped} dropped"
         )
+    print(f"[remap] {source_name}: done — {rep.images_after} images, "
+          f"{rep.boxes_after} boxes kept, {rep.boxes_dropped} dropped")
     return rep
 
 
@@ -201,6 +205,7 @@ def remap_all(cfg, raw_dirs: dict[str, Path], out_root: Path) -> dict[str, Remap
     """Remap every source; write out_root/remap.json (map + drop accounting)."""
     out_root = Path(out_root)
     out_root.mkdir(parents=True, exist_ok=True)
+    print(f"[remap] starting {len(raw_dirs)} sources: {sorted(raw_dirs)}")
     reports: dict[str, RemapReport] = {}
     maps_used: dict[str, dict[str, str]] = {}
     for source, src_dir in raw_dirs.items():

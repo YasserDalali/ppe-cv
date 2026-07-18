@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
+from tqdm import tqdm
 
 from ppe.config import Config
 from ppe.remap import RemapError, _find_images, read_class_names
@@ -83,6 +84,14 @@ def _dataset_root(scratch: Path) -> Path:
     )
 
 
+def _copytree_with_progress(src: Path, dest: Path, desc: str) -> None:
+    files = [p for p in src.rglob("*") if p.is_file()]
+    for p in tqdm(files, desc=desc, unit="file"):
+        target = dest / p.relative_to(src)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(p, target)
+
+
 def _promote_scratch(scratch: Path, dest: Path) -> None:
     """Copy a finished local download onto dest (usually Drive), replacing any partial."""
     for z in scratch.rglob("*.zip"):
@@ -91,7 +100,10 @@ def _promote_scratch(scratch: Path, dest: Path) -> None:
     if dest.exists():
         shutil.rmtree(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(root, dest)
+    # Drive FUSE writes can be slow for many small files (this is the step
+    # that silently ran for ~17 minutes before this file had any progress
+    # feedback) — show real per-file progress instead of nothing.
+    _copytree_with_progress(root, dest, desc=f"[download] {dest.name}: copying to Drive")
 
 
 def _probe_roboflow_zip(api_key: str, workspace: str, project: str,
@@ -197,6 +209,7 @@ def _download_roboflow(cfg: Config, api_key: str, workspace: str, project: str,
     from roboflow import Roboflow  # lazy: runtime-only dependency
 
     dest = Path(dest)
+    print(f"[download] {dest.name}: fetching from Roboflow {workspace}/{project}/v{version}…")
     _probe_roboflow_zip(api_key, workspace, project, version, "yolov8")
     last_exc: Exception | None = None
     # One retry: Roboflow/CDN occasionally serves a truncated body.
@@ -232,9 +245,13 @@ def _download_kaggle(cfg: Config, secrets: dict, dest: Path) -> None:
     dest = Path(dest)
     scratch = _scratch_path(cfg, dest.name)
     scratch.mkdir(parents=True, exist_ok=True)  # kaggle writes into an existing dir
+    print(f"[download] {dest.name}: downloading via Kaggle API ({cfg.sh17_kaggle_slug}) — "
+          "its own progress bar often doesn't render in Colab, so this can look stuck "
+          "for several minutes with no output; it isn't.")
     try:
         kaggle.api.dataset_download_files(
             cfg.sh17_kaggle_slug, path=str(scratch), unzip=True)
+        print(f"[download] {dest.name}: Kaggle download complete, copying to Drive…")
         _promote_scratch(scratch, dest)
     except Exception:
         if dest.exists():
@@ -322,6 +339,7 @@ def ensure_source(cfg: Config, secrets: dict, name: str) -> Path:
         raise DownloadError(f"unknown source {name!r}; expected one of {SOURCES}")
     dest = cfg.raw_dir / name
     if (dest / MARKER).is_file():
+        print(f"[download] {name}: cached (.complete found) — skipping")
         return dest
     try:
         if name == "sh17":

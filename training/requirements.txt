@@ -13,5 +13,6 @@ kaggle~=1.7
 supervision==0.29.1
 pytest==9.1.1
 PyYAML==6.0.3
+tqdm==4.68.4
 numpy>=1.23.0,<2.5.0
 pillow>=9.4.0,<13.0.0

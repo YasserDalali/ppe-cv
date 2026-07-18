@@ -16,6 +16,7 @@ from pathlib import Path
 import numpy as np
 import yaml
 from PIL import Image
+from tqdm import tqdm
 
 from ppe.config import Config
 from ppe.predict import Boxes, _load_yolo_model
@@ -131,7 +132,7 @@ def evaluate_predictor(predictor, eval_set_dir: Path, shared: list,
     items = load_eval_set(eval_set_dir)
     tp = fp = fn = 0
     map_metric = MeanAveragePrecision()
-    for img_path, gt in items:
+    for img_path, gt in tqdm(items, desc=f"[eval] {Path(eval_set_dir).name}", unit="img"):
         gt_f = _filter(gt, shared_norm)
         pred_f = _filter(predictor.predict(img_path), shared_norm)
         t, f, n = match_counts(gt_f, pred_f, iou_thr)
@@ -165,6 +166,7 @@ def compare_all(cfg: Config, predictor_ours, predictor_generic,
         (predictor_ours, "Ours", "OCP site", "ocp_test"),
     ]
     for predictor, model, label, key in plan:
+        print(f"[eval] {model} on {label} ({key})…")
         r = evaluate_predictor(predictor, eval_sets[key], shared,
                                cfg.eval_conf, cfg.eval_iou)
         rows.append({"model": model, "eval_set": label, "P": _pct(r.precision),
