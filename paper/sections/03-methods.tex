@@ -87,17 +87,19 @@ All sources are merged into a unified ten-class map: Person, helmet, vest, glove
   \node[proc, right=0.8cm of fuse] (model) {\textbf{YOLOv8n}\\[1pt]fine-tuning\\[-1pt]{\scriptsize $640\times640$ $\rightarrow$ \texttt{best.pt}}};
 
   \draw[arrow] (d1.east) -- node[note, pos=0.45, above, sloped] {ID remap} ($(fuse.west)+(0,0.45)$);
-  \draw[arrow] (d2.east) -- node[note, pos=0.45, above, sloped] {ID remap} ($(fuse.west)+(0,0.15)$);
+  \draw[arrow] (d2.east) -- node[note, pos=0.45, above, sloped] {ID remap, capped} ($(fuse.west)+(0,0.15)$);
   \draw[arrow] (d3.east) -- node[note, pos=0.45, below, sloped] {oversampled} ($(fuse.west)+(0,-0.15)$);
   \draw[arrow] (d4.east) -- node[note, pos=0.45, below, sloped] {sampling weight $\uparrow$} ($(fuse.west)+(0,-0.45)$);
   \draw[arrow] (fuse) -- (model);
 \end{tikzpicture}%
 }
-\caption{Dataset composition (stage 2 of Fig.~\ref{fig:pipeline}): four sources merged under a unified ten-class map with explicit label-ID remapping; the gas-mask source is oversampled and the OCP corpus receives a higher sampling weight. A held-out OCP portion forms the chemical-plant evaluation set (Section~\ref{sec:methods-comparison}).}
+\caption{Dataset composition (stage 2 of Fig.~\ref{fig:pipeline}): four sources merged under a unified ten-class map with explicit label-ID remapping; SH17's training contribution is capped at 1,500 images to bound fine-tuning cost, the gas-mask source is oversampled, and the OCP corpus receives a higher sampling weight. A held-out OCP portion forms the chemical-plant evaluation set (Section~\ref{sec:methods-comparison}).}
 \label{fig:datasets}
 \end{figure}
 
 Fusing annotation sets is not file concatenation, and the remapping step deserves emphasis because its failure mode is silent. Each source's integer class IDs index that source's own ontology: SH17's IDs 0--16 reference its 17-class list, not the fused map. Under naive merging, in-range IDs are reinterpreted as the wrong class, and every image with an ID at or above the fused class count is silently discarded as corrupt; in a preliminary naive merge, this alone rejected roughly 43\% of training images. Our pipeline therefore remaps explicitly before merging: each SH17 class is mapped to its fused ID or deliberately excluded (body-part classes), the mapping is recorded, and all label files are rewritten before any image enters training.
+
+SH17 also outnumbers the other three sources combined by roughly an order of magnitude, and per-epoch training cost scales directly with pool size. Because well-represented classes (\emph{Person}, \emph{gloves}, \emph{vest}, \emph{no\_helmet}) saturate detector performance with a few hundred examples, we cap SH17's contribution to the training split at 1{,}500 images, drawn uniformly at random with a fixed seed; validation and test still draw from the full SH17 source, so reported metrics remain representative of the whole corpus. This bounds fine-tuning cost on commodity compute without a corresponding cost to accuracy on common classes, at the price of proportionally thinning classes already scarce within SH17 itself, a trade-off returned to in Section~\ref{sec:discussion}.
 
 The gas-mask class receives targeted treatment: respiratory protection is among the most safety-relevant items at chemical sites yet under-represented in construction-skewed public data, so the class is populated by the Roboflow gas masks corpus \cite{roboflowgasmasks} and reinforced through oversampling and the augmentation policy of Section~\ref{sec:methods-preprocessing}.
 
@@ -111,7 +113,7 @@ All images are resized to $640\times640$ pixels. The augmentation policy targets
 \subsection{Model Training}
 \label{sec:methods-training}
 
-The detector is YOLOv8n \cite{ultralytics2023}, the nano variant of YOLOv8: 3.0M parameters, 8.1 GFLOPs at $640\times640$, and 6.3 MB of weights. The small footprint is deliberate: retrofit deployment means inference must run on commodity hardware alongside existing video infrastructure. Training runs on Google Colab for \phX{} epochs at $640\times640$ with batch size 16. Optimizer selection is left to the framework's automatic policy, which configures an SGD-family optimizer with initial learning rate 0.01, momentum 0.937, and weight decay $5\times10^{-4}$; the first three epochs apply learning-rate warmup. The best checkpoint by validation fitness is exported as \texttt{best.pt} and used in all subsequent stages. Detection accuracy is reported in Section~\ref{sec:results}.
+The detector is YOLOv8n \cite{ultralytics2023}, the nano variant of YOLOv8: 3.0M parameters, 8.1 GFLOPs at $640\times640$, and 6.3 MB of weights. The small footprint is deliberate: retrofit deployment means inference must run on commodity hardware alongside existing video infrastructure. Training runs on Google Colab for up to 50 epochs at $640\times640$ with batch size 16, stopping early if validation mAP does not improve over 20 consecutive epochs (patience 20); the reported run trained for \phX{} epochs in practice. Optimizer selection is left to the framework's automatic policy, which configures an SGD-family optimizer with initial learning rate 0.01, momentum 0.937, and weight decay $5\times10^{-4}$; the first three epochs apply learning-rate warmup. The best checkpoint by validation fitness is exported as \texttt{best.pt} and used in all subsequent stages. Detection accuracy is reported in Section~\ref{sec:results}.
 
 \subsection{Generic-vs-Adapted Comparison Protocol}
 \label{sec:methods-comparison}

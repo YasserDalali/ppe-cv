@@ -117,6 +117,12 @@ yolov8 export works). Version 1 does not exist. If you recreate the
 project, Generate a version with plain YOLOv8 and set `ocp_version`
 accordingly.
 
+### 7. (Optional) Prepare the dataset locally instead of in Colab
+
+Steps 1–3 can run on your own machine and get uploaded to Drive once,
+instead of re-running Roboflow/Kaggle downloads inside Colab every time.
+See `docs/LOCAL_PREPARE.md`.
+
 ## Running it
 
 1. Open the notebook in Colab.
