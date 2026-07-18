@@ -49,6 +49,7 @@ def train_model_a(cfg: Config, data_yaml: Path) -> Path:
             epochs=cfg.epochs,
             imgsz=cfg.imgsz,
             batch=cfg.batch,
+            patience=cfg.patience,
             seed=cfg.seed,
             erasing=cfg.erasing,
             close_mosaic=cfg.close_mosaic,

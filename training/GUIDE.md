@@ -23,8 +23,13 @@ than the current training epoch.
    held-out sets are built: **ocp_test** (OCP images never trained on) and
    **industrial_proxy** (SH17 + gas-mask test images, no OCP). Exact counts
    land in `split_summary.json`.
-4. **Train Model A** — YOLOv8n, 640×640, batch 16, 50 epochs on the Colab T4.
-   Checkpoints are written to Drive **every epoch**.
+4. **Train Model A** — YOLOv8n, 640×640, batch 16, up to 50 epochs (stops
+   early if val mAP hasn't improved in 20 epochs) on the Colab T4.
+   Checkpoints are written to Drive **every epoch**. SH17's train slice is
+   randomly capped at 1,500 images (`sh17_train_cap` in `config.py`) — it
+   dwarfs the other 3 curated sources and epoch time scales with it
+   directly; val/test still evaluate on the full SH17 source. Raise or set
+   to `None` to use all of SH17 if you have the GPU time.
 5. **Model B** — NOT trained. The existing hosted Roboflow model
    (`ppe_detection-dnfen/1`) is run over the same test images.
 6. **Evaluate** — the exact same scoring code runs both models on the same

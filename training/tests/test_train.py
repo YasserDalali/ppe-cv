@@ -71,7 +71,7 @@ def test_fresh_train_passes_exact_hyperparams(tmp_path):
     (kw,) = model.train_calls
     assert kw == {
         "data": str(data_yaml), "epochs": 50, "imgsz": 640, "batch": 16,
-        "seed": 0, "erasing": 0.4, "close_mosaic": 10, "save_period": 1,
+        "patience": 20, "seed": 0, "erasing": 0.4, "close_mosaic": 10, "save_period": 1,
         "project": str(cfg.runs_dir), "name": "model_a", "exist_ok": True,
     }
 

@@ -61,11 +61,19 @@ class Config:
     test_frac: float = 0.15
     ocp_dup_factor: int = 3        # train split only
     gasmask_dup_factor: int = 3    # train split only
+    # SH17 (Kaggle) dwarfs the other 3 curated sources combined (~900 images)
+    # and epoch time scales with it directly. Common classes (Person, gloves,
+    # vest, no_helmet) already hit mAP50 > 0.85 with a few hundred examples,
+    # so a random cap on SH17's train slice trims mostly-redundant common-
+    # class images without touching val/test (evaluation stays on the full
+    # source). None disables the cap. Train split only.
+    sh17_train_cap: int | None = 1500
     # --- training ---
     model_name: str = "yolov8n.pt"
     imgsz: int = 640
     batch: int = 16
     epochs: int = 50
+    patience: int = 20             # stop once val mAP plateaus this many epochs
     erasing: float = 0.4
     close_mosaic: int = 10
     save_period: int = 1

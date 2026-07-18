@@ -54,6 +54,31 @@ def test_split_deterministic(tmp_path):
         assert stems(r1.dataset_dir / split) == stems(r2.dataset_dir / split)
 
 
+def test_sh17_train_cap_limits_train_only(tmp_path):
+    src = make_remapped_source(tmp_path / "remapped", "sh17", 20)
+    cfg = Config(drive_root=tmp_path / "drive", work_root=tmp_path / "work", sh17_train_cap=5)
+    res = merge_and_split(cfg, {"sh17": src}, tmp_path / "out")
+    # uncapped would be 14/3/3 (see test_split_ratios_and_prefixes); cap trims only train
+    assert len(stems(res.dataset_dir / "train")) == 5
+    assert len(stems(res.dataset_dir / "val")) == 3
+    assert len(stems(res.dataset_dir / "test")) == 3
+
+
+def test_sh17_train_cap_does_not_affect_other_sources(tmp_path):
+    src = make_remapped_source(tmp_path / "remapped", "ocp", 20)
+    cfg = Config(drive_root=tmp_path / "drive", work_root=tmp_path / "work", sh17_train_cap=5)
+    res = merge_and_split(cfg, {"ocp": src}, tmp_path / "out")
+    ocp_train = [s for s in stems(res.dataset_dir / "train") if "__dup" not in s]
+    assert len(ocp_train) == 14  # int(20*0.7), cap only applies to sh17
+
+
+def test_sh17_train_cap_none_disables_cap(tmp_path):
+    src = make_remapped_source(tmp_path / "remapped", "sh17", 20)
+    cfg = Config(drive_root=tmp_path / "drive", work_root=tmp_path / "work", sh17_train_cap=None)
+    res = merge_and_split(cfg, {"sh17": src}, tmp_path / "out")
+    assert len(stems(res.dataset_dir / "train")) == 14
+
+
 def test_duplication_train_only(tmp_path):
     root = tmp_path / "remapped"
     remapped = {

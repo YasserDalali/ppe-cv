@@ -201,8 +201,11 @@ def merge_and_split(cfg: Config, remapped: dict[str, Path], out_root: Path) -> S
         n = len(pairs)
         n_train = int(n * cfg.train_frac)
         n_val = int(n * cfg.val_frac)
+        train_idx = order[:n_train]
+        if source == "sh17" and cfg.sh17_train_cap is not None and len(train_idx) > cfg.sh17_train_cap:
+            train_idx = train_idx[:cfg.sh17_train_cap]
         splits = {
-            "train": order[:n_train],
+            "train": train_idx,
             "val": order[n_train:n_train + n_val],
             "test": order[n_train + n_val:],
         }
