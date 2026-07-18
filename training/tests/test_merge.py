@@ -1,13 +1,17 @@
 import json
+import shutil
 import zipfile
 from pathlib import Path
 
+import pytest
 import yaml
 
 from conftest import write_png
 from ppe.config import CANONICAL_CLASSES, Config
-from ppe.merge import merge_and_split, zip_dir
+from ppe.merge import ensure_prepared, merge_and_split, zip_dir
 from ppe.remap import remap_all
+
+SECRETS = {"ROBOFLOW_API_KEY": "k", "KAGGLE_USERNAME": "u", "KAGGLE_KEY": "kk"}
 
 
 def make_remapped_source(root: Path, name: str, n_images: int, cls_id: int = 0) -> Path:
@@ -138,6 +142,31 @@ def test_data_yaml_and_summary(tmp_path, fixture_sources):
         assert per["train_after_dup"] == actual_after_dup
     assert summary["eval_sets"]["ocp_test"] == len(stems(res.ocp_test_dir))
     assert "train" in summary["per_class_boxes"]
+
+
+def test_ensure_prepared_rebuilds_after_partial_zip(tmp_path, fixture_sources, monkeypatch):
+    cfg = cfg_for(tmp_path)
+    for name, src in fixture_sources.items():
+        dest = cfg.raw_dir / name
+        shutil.copytree(src, dest)
+        (dest / ".complete").touch()
+    monkeypatch.setattr("ppe.download._download_roboflow",
+                        lambda *a, **k: pytest.fail("network download attempted"))
+    monkeypatch.setattr("ppe.download._download_kaggle",
+                        lambda *a, **k: pytest.fail("network download attempted"))
+
+    local = ensure_prepared(cfg, SECRETS)
+    assert (local / "data.yaml").is_file()
+
+    # Simulate a disconnect mid-zip-write (pre-fix, zip_dir wrote straight to
+    # zip_path with no atomic rename, so a crash left exactly this on Drive).
+    zip_path = cfg.prepared_dir / "fused.zip"
+    zip_path.write_bytes(b"not a real zip, truncated by a disconnect")
+    shutil.rmtree(cfg.work_root)
+
+    local = ensure_prepared(cfg, SECRETS)  # must rebuild, not raise BadZipFile
+    assert (local / "data.yaml").is_file()
+    assert zipfile.is_zipfile(zip_path)
 
 
 def test_zip_dir_roundtrip(tmp_path):

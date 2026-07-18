@@ -13,6 +13,7 @@ import hashlib
 import json
 import random
 import shutil
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -68,10 +69,16 @@ def write_data_yaml(dataset_dir: Path) -> Path:
 
 
 def zip_dir(src_dir: Path, zip_path: Path) -> Path:
+    """Write to a temp path and rename into place, so a disconnect mid-write
+    (this can take a long time onto Drive) never leaves a partial zip_path
+    behind that a later run would mistake for a finished build."""
     zip_path = Path(zip_path)
     zip_path.parent.mkdir(parents=True, exist_ok=True)
-    made = shutil.make_archive(str(zip_path.with_suffix("")), "zip", root_dir=src_dir)
-    return Path(made)
+    tmp_base = str(zip_path) + ".partial"  # make_archive appends ".zip" itself
+    Path(tmp_base + ".zip").unlink(missing_ok=True)
+    made = Path(shutil.make_archive(tmp_base, "zip", root_dir=src_dir))
+    made.replace(zip_path)
+    return zip_path
 
 
 def _pairs(source_dir: Path) -> list[tuple[Path, Path]]:
@@ -122,6 +129,10 @@ def ensure_prepared(cfg: Config, secrets: dict) -> Path:
     from ppe.remap import remap_all
 
     zip_path = cfg.prepared_dir / "fused.zip"
+    if zip_path.is_file() and not zipfile.is_zipfile(zip_path):
+        # A prior run was interrupted (e.g. Colab disconnect) mid-write —
+        # zip_dir() is atomic now, but an old partial file may still be here.
+        zip_path.unlink()
     if not zip_path.is_file():
         raw = download_all(cfg, secrets)
         build = cfg.work_root / "prepared_build"
