@@ -4,7 +4,7 @@
 % training rerun (fixed SH17 remap + gas-mask class). Drop numbers in from the
 % rerun log; do not reuse figures from the earlier fusion run.
 
-The central result of this section is the generic-versus-adapted comparison of Section~\ref{sec:results-comparison}: identical evaluation imagery, one detector trained only on the public construction benchmark, one adapted for industrial and chemical conditions. The section then reports the adapted detector's aggregate and per-class behavior (\phX\% precision, \phX\% recall, \phX\% mAP@50 at \phX~ms per frame on a Tesla T4-class GPU), judge case studies, error structure, and runtime feasibility.
+The central result of this section is the generic-versus-adapted comparison of Section~\ref{sec:results-comparison}: identical evaluation imagery, one detector trained only on the public construction benchmark, one adapted for industrial and chemical conditions. The section then reports the adapted detector's aggregate and per-class behavior (\phX\% precision, \phX\% recall, \phX\% mAP@50 at \phX~ms per frame on a Tesla T4-class GPU), error structure, and runtime feasibility.
 
 \subsection{Generic vs.\ Industrial-Adapted Model}\label{sec:results-comparison}
 
@@ -110,34 +110,6 @@ gas mask    & \phX & \phX & \phX \\
 \end{tabular}
 \end{table}
 
-\subsection{LLM Judge Qualitative Case Studies}\label{sec:results-cases}
-
-The judge stage is evaluated qualitatively: three to five real flagged detections from pilot footage, each presented with its detection crop, the verbatim \texttt{reason} field returned by the Qwen2.5-VL judge \cite{qwen25vl}, and the final verdict. The set includes at least one false positive the judge correctly rejects (glare or occlusion artifacts of the kind that drive false-alarm load \cite{donald2015}) and at least one genuine violation it confirms, so both failure-suppression and violation-preservation are visible on real inputs. Table~\ref{tab:cases} holds the case scaffold; detection crops appear in Fig.~\ref{fig:cases-crops}.
-
-\begin{figure}[t]
-\centering
-\fbox{\parbox[c][2.2cm][c]{0.9\columnwidth}{\centering Placeholder: detection crops for the judge case studies\\of Table~\ref{tab:cases} (pending imagery clearance).}}
-\caption{Detection crops accompanying the judge case studies of Table~\ref{tab:cases}. TODO: insert once site imagery is cleared.}
-\label{fig:cases-crops}
-\end{figure}
-
-No quantitative false-positive-reduction figure is claimed for the judge anywhere in this paper: the case studies demonstrate the mechanism on real detections, not its aggregate effect, and benchmarking over a labeled alert set is future work (Section~\ref{sec:discussion}).
-
-\begin{table*}[t]
-\caption{LLM judge case studies: flagged detections with verbatim judge output. TODO: fill from pilot judge runs; include detection crops as an accompanying figure once imagery is cleared.}
-\label{tab:cases}
-\centering
-\begin{tabular}{clcp{8.5cm}}
-\toprule
-Case & Flagged class & Judge verdict & Judge reason (verbatim) \\
-\midrule
-1 & TODO & TODO & TODO \\
-2 & TODO & TODO & TODO \\
-3 & TODO & TODO & TODO \\
-\bottomrule
-\end{tabular}
-\end{table*}
-
 \subsection{Error Analysis}\label{sec:results-errors}
 
 Confusion concentrates among visually similar class pairs (Fig.~\ref{fig:confusion}). The equipment/absence pairs (helmet vs.\ no\_helmet, goggles vs.\ no\_goggle) are separated by fine-grained head-region cues that degrade with distance and partial occlusion; \phX\% of no\_helmet errors fall into this pattern. Dark headwear and hoods account for a further \phX\% of helmet-related confusions, and gloves at long range are confused with bare hands in \phX\% of cases.
@@ -158,4 +130,4 @@ Class support shapes these figures: helmet holds \phX validation instances again
 
 Single-frame latency on a Tesla T4-class GPU is \phX~ms end to end: \phX~ms preprocessing, \phX~ms inference, and \phX~ms postprocessing at $640\times640$ resolution. At an analysis rate of \phX frames per second per camera, one GPU of this class sustains approximately \phX concurrent camera feeds, before any batching across streams.
 
-The model is small (3.0M parameters, 8.1 GFLOPs, a 6.3~MB weight file \cite{ultralytics2023}), in line with edge-oriented PPE deployments \cite{edgeyolo2024}, so the detection workload for a multi-camera installation concentrates on one commodity GPU server on the existing network, with no per-camera hardware. The judge adds latency only on the flagged-detection path, orders of magnitude sparser than the frame stream, so detector throughput governs feed capacity.
+The model is small (3.0M parameters, 8.1 GFLOPs, a 6.3~MB weight file \cite{ultralytics2023}), in line with edge-oriented PPE deployments \cite{edgeyolo2024}, so the detection workload for a multi-camera installation concentrates on one commodity GPU server on the existing network, with no per-camera hardware.
