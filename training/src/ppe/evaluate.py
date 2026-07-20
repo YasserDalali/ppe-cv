@@ -15,7 +15,7 @@ from pathlib import Path
 
 import numpy as np
 import yaml
-from PIL import Image
+from PIL import Image, ImageOps
 from tqdm import tqdm
 
 from ppe.config import Config
@@ -51,7 +51,13 @@ def load_eval_set(eval_set_dir: Path) -> list:
         names = [names[k] for k in sorted(names, key=int)]
     items = []
     for img_path in sorted((eval_set_dir / "images").iterdir()):
-        w, h = Image.open(img_path).size
+        # exif_transpose: plain .size reads raw sensor pixel dimensions, which
+        # disagree with the label file (annotated on the EXIF-rotated, on-
+        # screen orientation) for any source with camera/CCTV EXIF orientation
+        # tags — e.g. OCP. Training and model.val() already correct for this
+        # via Ultralytics' own loaders; this was the one path that didn't.
+        with Image.open(img_path) as im:
+            w, h = ImageOps.exif_transpose(im).size
         label = eval_set_dir / "labels" / f"{img_path.stem}.txt"
         rows, cls = [], []
         if label.is_file():

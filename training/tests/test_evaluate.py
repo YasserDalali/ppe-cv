@@ -1,5 +1,6 @@
 import numpy as np
 import yaml
+from PIL import Image
 
 from conftest import write_png
 from ppe.config import CANONICAL_CLASSES, Config
@@ -90,6 +91,38 @@ def test_load_eval_set_denormalizes(tmp_path):
     assert img.stem == "a"
     assert gt.xyxy.tolist() == [[8.0, 8.0, 24.0, 24.0]]
     assert gt.class_names == ["Person"]
+
+
+def test_load_eval_set_respects_exif_orientation(tmp_path):
+    """Regression test: camera/CCTV photos (e.g. OCP) can carry an EXIF
+    orientation tag where the stored pixel grid is portrait but the tag says
+    'rotate 90 deg to display' (landscape). Annotation tools label the
+    displayed (rotated) image, so ground-truth boxes are normalized against
+    the rotated dimensions — load_eval_set must denormalize against those
+    same rotated dimensions, not the raw on-disk pixel grid."""
+    es = tmp_path / "es"
+    (es / "images").mkdir(parents=True)
+    (es / "labels").mkdir(parents=True)
+
+    # Stored 20x40 (portrait); orientation tag 6 means "rotate 90 CW to
+    # display", so the correctly-oriented (annotated) image is 40x20.
+    im = Image.new("RGB", (20, 40), (127, 127, 127))
+    exif = im.getexif()
+    exif[0x0112] = 6
+    im.save(es / "images" / "a.jpg", exif=exif)
+
+    # Box centered at the right-hand edge of the 40x20 displayed image.
+    (es / "labels" / "a.txt").write_text("0 0.9 0.5 0.2 0.5\n")
+    (es / "data.yaml").write_text(yaml.safe_dump(
+        {"nc": len(CANONICAL_CLASSES), "names": CANONICAL_CLASSES}))
+
+    items = load_eval_set(es)
+    assert len(items) == 1
+    _, gt = items[0]
+    # Denormalized against the 40x20 displayed frame: x in [32, 40], y in [5, 15].
+    # (Denormalizing against the raw, un-rotated 20x40 pixel grid instead
+    # would give the wrong box [16, 10, 20, 30] — this is what the bug did.)
+    assert gt.xyxy.tolist() == [[32.0, 5.0, 40.0, 15.0]]
 
 
 def test_evaluate_perfect_and_empty_predictor(tmp_path):
