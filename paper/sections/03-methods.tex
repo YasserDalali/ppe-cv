@@ -8,7 +8,7 @@ The system is the three-stage pipeline of Fig.~\ref{fig:pipeline}: a pretrained 
 
 The design is shaped by one constraint: the pipeline must retrofit onto installed CCTV cameras, which rules out new imaging hardware and favors a small detector (Section~\ref{sec:methods-training}). Within this design, stage 2 carries the paper's scientific question, whether generic benchmark training transfers to an operating plant at all; the protocol of Section~\ref{sec:methods-comparison} answers it.
 
-\begin{figure}[t]
+\begin{figure}[H]
 \centering
 \resizebox{\columnwidth}{!}{%
 \begin{tikzpicture}[
@@ -52,7 +52,7 @@ The design is shaped by one constraint: the pipeline must retrofit onto installe
 No single public corpus covers the class mix of a chemical-processing site, so the training set fuses three public sources and one site-specific corpus under a single class map (Fig.~\ref{fig:datasets}). Roboflow PPE-Detection \cite{roboflowppe} contributes a helmet- and vest-centred detection benchmark typical of construction imagery. SH17 \cite{ahmad2024sh17} contributes 17 classes of PPE items and human body parts across varied industrial scenes. The Roboflow gas masks corpus \cite{roboflowgasmasks} (384 images) supplies instances of the gas-mask class that construction-skewed benchmarks barely cover.
 All sources are merged into a unified ten-class map: Person, helmet, vest, gloves, boots, goggles, no\_helmet, no\_gloves, no\_goggle, and gas mask. The explicit negative classes (no\_helmet, no\_gloves, no\_goggle) let the detector localize the \emph{absence} of an item directly instead of inferring it from a missing detection.
 
-\begin{figure}[t]
+\begin{figure}[H]
 \centering
 \resizebox{\columnwidth}{!}{%
 \begin{tikzpicture}[

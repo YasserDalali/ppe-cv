@@ -27,7 +27,7 @@ Adapted (ours) & OCP site imagery & 84.9 & 87.4 & 65.5 \\
 \end{tabular}
 \end{table}
 
-\begin{figure}[t]
+\begin{figure}[H]
 \centering
 \begin{tikzpicture}
 \begin{axis}[
@@ -55,18 +55,32 @@ Adapted (ours) & OCP site imagery & 84.9 & 87.4 & 65.5 \\
 
 The comparison splits into two regimes. On the construction imagery it was built for, the generic detector is respectable (59.1\% mAP@50); moved onto industrial imagery it has never seen configured for, its mAP@50 collapses to 0.4\% on the industrial proxy set and recovers only to 18.5\% on OCP site imagery. The adapted model, scored on the same frames under the same fixed confidence and IoU thresholds, holds 49.6\% and 65.5\% mAP@50 respectively. Two points follow. First, the industrial proxy result is the more severe failure of the two, and the more informative one: the proxy set draws on SH17 and gas-mask imagery, industrial scenes that are still generic rather than OCP-specific, so the near-total collapse there shows that ordinary domain shift away from Roboflow PPE-Detection's construction framing already defeats the generic model, before dust, oblique CCTV angles, or site uniforms enter the picture at all. Second, the OCP site gap (18.5\% vs.\ 65.5\%) is the deployment-relevant number: it is what separates a system a safety team could act on from one it could not, and it is the number the abstract and conclusion lead with. Part of the generic model's collapse is plausibly a calibration artifact rather than pure detection failure (a fixed conf=0.25 threshold tuned implicitly on construction imagery need not carry over to a different domain), which is one reason Section~\ref{sec:discussion} treats the training-set-size confound between the two models as an open limitation rather than a settled point.
 
-Beyond aggregate metrics, Figure~\ref{fig:ocp-compare} compares the two models qualitatively on identical OCP frames under the dust, oblique camera angles, and site uniforms that motivated the adaptation.
+Beyond aggregate metrics, Figures~\ref{fig:ocp-compare}--\ref{fig:ocp-compare3} compare the two models qualitatively on identical OCP frames under the dust, oblique camera angles, and site uniforms that motivated the adaptation.
 
-\begin{figure}[t]
+\begin{figure}[H]
 \centering
 \includegraphics[width=\columnwidth]{figures/ocp_qualitative.jpg}
-\caption{Generic vs.\ industrial-adapted model on an identical OCP site frame. The adapted detector (left, green) correctly localizes Person, vest, and helmet at high confidence ($\geq$0.82) and adds boots; the generic detector (right, red) misses the vest entirely, places a spurious low-confidence ``gloves'' box on background pipework, and raises a false ``no-helmet'' violation alert directly on the worker's head, despite the worker wearing one. That last error is the concrete version of the false-alarm risk raised in Section~\ref{sec:related}: a detector that hallucinates violations shifts the vigilance burden downstream instead of removing it.}
+\caption{Generic vs.\ industrial-adapted model on an identical OCP site frame. The adapted detector (left, green) correctly localizes Person, vest, and helmet at high confidence ($\geq$0.82) and adds boots; the generic detector (right, red) misses the vest entirely, places a spurious low-confidence ``gloves'' box on background pipework, and raises a false ``gloves'' label directly on the worker's hands while he clearly does not wear any.}
 \label{fig:ocp-compare}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\columnwidth]{figures/ocp_qualitative_2.jpg}
+\caption{A second OCP frame. The adapted detector (left, green) returns 7 detections, including Person, vest, and gas mask; the generic detector (right, red) returns 3, and its only head-region box (labeled ``helmet,'' 0.45 confidence) is placed on background scaffolding well away from the worker, while a separate box correctly but only generically labels the worker's feet ``shoes.'' The gas-mask detection has no counterpart in the generic model at all, since gas mask is not in its class inventory.}
+\label{fig:ocp-compare2}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\columnwidth]{figures/ocp_qualitative_3.jpg}
+\caption{A third OCP frame, inside a processing structure with active spray/dust in the background. The adapted detector (left, green) localizes Person and vest tightly on the worker; the generic detector (right, red) detects the worker's helmet at only 0.39 confidence and places a second box labeled ``gloves'' (0.48) on a rusted pipe fitting in the foreground, nowhere near the worker's hands.}
+\label{fig:ocp-compare3}
 \end{figure}
 
 \subsection{Training Performance}\label{sec:results-training}
 
-\begin{figure}[t]
+\begin{figure}[H]
 \centering
 \includegraphics[width=\columnwidth]{figures/dashboard.png}
 \caption{Training dashboard for the fused-dataset run: box, classification, and DFL loss curves (train and validation) with precision, recall, mAP@50, and mAP@50--95 per epoch.}
@@ -109,7 +123,7 @@ Three classes clear 85\% mAP@50: goggles (86.2\%), gas mask (86.1\%), and vest (
 
 The confusion matrix (Fig.~\ref{fig:confusion}) shows the dominant error mode is missed detection, not confusion between visually similar equipped/unequipped pairs: for every class, the largest off-diagonal mass falls in the background row (predictions the detector never made) rather than in a sibling PPE class. Helmet illustrates this: 59\% of true helmet instances are detected correctly, 37\% are missed outright, and only 6\% are confused with no\_helmet. Confusion between a class and its negative counterpart is real, but it is a minor contributor next to plain misses. The same pattern holds for no\_gloves (47\% correctly detected, with most of the remainder split between misses and confusion with gloves or boots) and boots (70\% correct, 24\% missed). gloves is the weakest diagonal in the matrix (33\% correctly detected, matching its 33.8\% mAP@50 in Table~\ref{tab:perclass}): a thin, frequently occluded object at CCTV range is the detector's hardest case, consistent with the small-object limitation discussed in Section~\ref{sec:discussion}. no\_goggle has no row or column at all in the matrix: no source dataset contributed a single no\_goggle instance to training or validation, so Table~\ref{tab:perclass}'s 0.0\% row is a data-absence artifact rather than a detection failure. Section~\ref{sec:discussion} returns to this gap.
 
-\begin{figure}[t]
+\begin{figure}[H]
 \centering
 \includegraphics[width=\columnwidth]{figures/confusion_matrix.png}
 \caption{Normalized confusion matrix of the adapted detector on the fused validation split. Rows are predicted class, columns are true class; the background row/column captures missed detections and spurious predictions respectively. no\_goggle has no instances and is empty by construction.}
