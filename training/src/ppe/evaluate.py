@@ -151,6 +151,115 @@ def evaluate_predictor(predictor, eval_set_dir: Path, shared: list,
     return EvalResult(precision, recall, map50, len(items), list(shared))
 
 
+@dataclass
+class ImageDiagnostic:
+    """Per-image forensics for one predictor on one eval set: how many boxes
+    the model actually produced (before any class filtering) versus how many
+    ground-truth boxes exist, the best spatial overlap ignoring class (to
+    tell 'wrong class' apart from 'no spatial overlap at all'), and how long
+    the predict() call took (a silently-failing/short-circuiting predictor
+    tends to be suspiciously fast)."""
+    image: str
+    width: int
+    height: int
+    exif_rotated: bool
+    n_gt_shared: int
+    n_pred_raw: int
+    n_pred_shared: int
+    pred_classes_seen: list
+    best_iou_ignore_class: float
+    predict_seconds: float
+    error: str | None = None
+
+
+def diagnose_eval_set(predictor, eval_set_dir: Path, shared: list,
+                      iou_thr: float, max_images: int | None = None) -> list:
+    """Cheap, single-predictor, single-eval-set forensic dump — meant to run
+    on a small set (e.g. ocp_test, ~50 images, seconds) before committing to
+    the full multi-set compare_all() sweep (minutes). Surfaces the three
+    failure modes that all look like 'near-zero score' from the outside but
+    need different fixes: (1) the model predicts nothing at all on these
+    images, (2) it predicts plenty but nothing spatially overlaps the ground
+    truth (a coordinate/orientation/scale bug), (3) boxes do overlap but the
+    predicted class never matches the ground-truth class (a class-mapping
+    bug)."""
+    import time
+
+    shared_norm = [normalize_name(s) for s in shared]
+    items = load_eval_set(eval_set_dir)
+    if max_images is not None:
+        items = items[:max_images]
+    out = []
+    for img_path, gt in items:
+        with Image.open(img_path) as im:
+            raw_size = im.size
+            exif_size = ImageOps.exif_transpose(im).size
+        # report the corrected size: that's what the GT boxes above were
+        # denormalized against (load_eval_set), so it's the one that should
+        # agree with what the predictor's own coordinates are in.
+        width, height = exif_size
+        gt_f = _filter(gt, shared_norm)
+        t0 = time.perf_counter()
+        err = None
+        try:
+            pred = predictor.predict(img_path)
+        except Exception as exc:  # noqa: BLE001 — diagnostic path, report don't crash
+            pred = Boxes.empty()
+            err = f"{type(exc).__name__}: {exc}"
+        dt = time.perf_counter() - t0
+        pred_f = _filter(pred, shared_norm)
+        best_iou = 0.0
+        for g in gt_f.xyxy:
+            for p in pred_f.xyxy:
+                best_iou = max(best_iou, _iou(g, p))
+        out.append(ImageDiagnostic(
+            image=img_path.name, width=width, height=height,
+            exif_rotated=raw_size != exif_size,
+            n_gt_shared=len(gt_f.class_names), n_pred_raw=len(pred.class_names),
+            n_pred_shared=len(pred_f.class_names),
+            pred_classes_seen=sorted(set(pred.class_names)),
+            best_iou_ignore_class=round(best_iou, 3),
+            predict_seconds=round(dt, 4), error=err,
+        ))
+    return out
+
+
+def print_diagnostics(infos: list) -> None:
+    """Human-readable dump of diagnose_eval_set() output, plus an aggregate
+    verdict pointing at which failure mode (if any) is in play."""
+    for d in infos:
+        flags = []
+        if d.error:
+            flags.append("ERROR")
+        if d.n_gt_shared and d.n_pred_raw == 0:
+            flags.append("NO PREDICTIONS AT ALL")
+        elif d.n_gt_shared and d.best_iou_ignore_class < 0.1 and d.n_pred_raw > 0:
+            flags.append("PREDICTIONS EXIST BUT DON'T OVERLAP GT")
+        flag_str = f"  <-- {', '.join(flags)}" if flags else ""
+        print(f"{d.image:45s} {d.width:4d}x{d.height:<4d} exif_rotated={str(d.exif_rotated):5s} "
+              f"gt={d.n_gt_shared:2d} pred_raw={d.n_pred_raw:3d} pred_shared={d.n_pred_shared:2d} "
+              f"best_iou={d.best_iou_ignore_class:.3f} {d.predict_seconds*1000:6.1f}ms{flag_str}")
+        if d.error:
+            print(f"    ERROR: {d.error}")
+
+    n = len(infos)
+    n_with_gt = sum(1 for d in infos if d.n_gt_shared)
+    n_zero_pred = sum(1 for d in infos if d.n_pred_raw == 0)
+    n_no_overlap = sum(1 for d in infos if d.n_gt_shared and d.n_pred_raw > 0
+                       and d.best_iou_ignore_class < 0.1)
+    n_errors = sum(1 for d in infos if d.error)
+    avg_ms = sum(d.predict_seconds for d in infos) / n * 1000 if n else 0.0
+    n_exif = sum(1 for d in infos if d.exif_rotated)
+    print(f"\n{n} images ({n_with_gt} with ground truth in the shared classes), "
+          f"avg predict() time {avg_ms:.1f}ms")
+    print(f"  {n_exif} images had an EXIF orientation tag requiring correction")
+    print(f"  {n_zero_pred} images produced ZERO raw predictions from the model")
+    print(f"  {n_no_overlap} images had predictions that never spatially overlap "
+          f"any ground-truth box (best IoU < 0.1) — points at a coordinate/scale/"
+          f"orientation bug rather than a classification bug")
+    print(f"  {n_errors} images raised an exception during predict()")
+
+
 def _pct(x: float) -> float:
     return round(100.0 * x, 1)
 

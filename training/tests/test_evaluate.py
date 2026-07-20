@@ -8,10 +8,12 @@ from ppe.evaluate import (
     SHARED_CANDIDATES,
     cameras_at_fps,
     compare_all,
+    diagnose_eval_set,
     evaluate_predictor,
     load_eval_set,
     match_counts,
     model_a_val,
+    print_diagnostics,
     shared_class_list,
 )
 from ppe.predict import Boxes
@@ -143,6 +145,74 @@ def test_evaluate_perfect_and_empty_predictor(tmp_path):
     empty = StubPredictor(CANONICAL_CLASSES, {})
     res0 = evaluate_predictor(empty, d, shared, conf=0.25, iou_thr=0.5)
     assert res0.precision == 0.0 and res0.recall == 0.0 and res0.map50 == 0.0
+
+
+def test_diagnose_eval_set_flags_zero_predictions(tmp_path):
+    d = make_eval_set(tmp_path / "es", {"a": [(0, 0.5, 0.5, 0.5, 0.5)]})
+    empty = StubPredictor(CANONICAL_CLASSES, {})
+    infos = diagnose_eval_set(empty, d, ["person"], iou_thr=0.5)
+    assert len(infos) == 1
+    assert infos[0].n_gt_shared == 1
+    assert infos[0].n_pred_raw == 0
+    assert infos[0].best_iou_ignore_class == 0.0
+    assert infos[0].error is None
+
+
+def test_diagnose_eval_set_flags_no_spatial_overlap(tmp_path):
+    # GT box on a 32x32 canvas at (0.5,0.5,0.5,0.5) -> xyxy [8,8,24,24].
+    d = make_eval_set(tmp_path / "es", {"a": [(0, 0.5, 0.5, 0.5, 0.5)]})
+    far = StubPredictor(CANONICAL_CLASSES, {"a": boxes([(0, 0, 2, 2, "Person", 0.9)])})
+    infos = diagnose_eval_set(far, d, ["person"], iou_thr=0.5)
+    assert infos[0].n_pred_raw == 1
+    assert infos[0].best_iou_ignore_class < 0.1
+
+
+def test_diagnose_eval_set_reports_high_overlap_when_boxes_match(tmp_path):
+    d = make_eval_set(tmp_path / "es", {"a": [(0, 0.5, 0.5, 0.5, 0.5)]})
+    _, gt = load_eval_set(d)[0]
+    exact = StubPredictor(CANONICAL_CLASSES, {
+        "a": Boxes(gt.xyxy, gt.class_names, np.array([0.9]))})
+    infos = diagnose_eval_set(exact, d, ["person"], iou_thr=0.5)
+    assert infos[0].best_iou_ignore_class > 0.99
+
+
+def test_diagnose_eval_set_catches_predictor_exception(tmp_path):
+    d = make_eval_set(tmp_path / "es", {"a": [(0, 0.5, 0.5, 0.5, 0.5)]})
+
+    class RaisingPredictor:
+        def predict(self, image_path):
+            raise RuntimeError("boom")
+
+    infos = diagnose_eval_set(RaisingPredictor(), d, ["person"], iou_thr=0.5)
+    assert len(infos) == 1
+    assert infos[0].n_pred_raw == 0
+    assert "boom" in infos[0].error
+
+
+def test_diagnose_eval_set_flags_exif_rotation(tmp_path):
+    es = tmp_path / "es"
+    (es / "images").mkdir(parents=True)
+    (es / "labels").mkdir(parents=True)
+    im = Image.new("RGB", (20, 40), (127, 127, 127))
+    exif = im.getexif()
+    exif[0x0112] = 6
+    im.save(es / "images" / "a.jpg", exif=exif)
+    (es / "labels" / "a.txt").write_text("0 0.5 0.5 0.5 0.5\n")
+    (es / "data.yaml").write_text(yaml.safe_dump(
+        {"nc": len(CANONICAL_CLASSES), "names": CANONICAL_CLASSES}))
+
+    infos = diagnose_eval_set(StubPredictor(CANONICAL_CLASSES, {}), es, ["person"], iou_thr=0.5)
+    assert infos[0].exif_rotated is True
+    assert (infos[0].width, infos[0].height) == (40, 20)
+
+
+def test_print_diagnostics_smoke(tmp_path, capsys):
+    d = make_eval_set(tmp_path / "es", {"a": [(0, 0.5, 0.5, 0.5, 0.5)]})
+    infos = diagnose_eval_set(StubPredictor(CANONICAL_CLASSES, {}), d, ["person"], iou_thr=0.5)
+    print_diagnostics(infos)
+    out = capsys.readouterr().out
+    assert "NO PREDICTIONS AT ALL" in out
+    assert "1 images" in out
 
 
 def test_compare_all_six_rows(tmp_path):
