@@ -260,6 +260,63 @@ def print_diagnostics(infos: list) -> None:
     print(f"  {n_errors} images raised an exception during predict()")
 
 
+def best_matches(predictor, eval_set_dir: Path, shared: list, image_names: list | None = None,
+                 max_images: int = 4) -> list:
+    """For up to max_images images (optionally restricted to specific
+    filenames), return (img_path, gt, pred, matches) where matches is, for
+    each ground-truth box, the best-matching predicted box index (or None)
+    and the IoU between them, ignoring class — the raw material for a visual
+    GT-vs-prediction sanity check (draw_gt_vs_pred)."""
+    shared_norm = [normalize_name(s) for s in shared]
+    items = load_eval_set(eval_set_dir)
+    if image_names is not None:
+        wanted = set(image_names)
+        items = [(p, g) for p, g in items if p.name in wanted]
+        # preserve the caller's requested order rather than eval-set order
+        items.sort(key=lambda pg: image_names.index(pg[0].name))
+    items = items[:max_images]
+
+    out = []
+    for img_path, gt in items:
+        gt_f = _filter(gt, shared_norm)
+        pred_f = _filter(predictor.predict(img_path), shared_norm)
+        matches = []
+        for gi in range(len(gt_f.class_names)):
+            best_iou, best_pi = 0.0, None
+            for pi in range(len(pred_f.class_names)):
+                iou = _iou(gt_f.xyxy[gi], pred_f.xyxy[pi])
+                if iou > best_iou:
+                    best_iou, best_pi = iou, pi
+            matches.append((gi, best_pi, round(best_iou, 3)))
+        out.append((img_path, gt_f, pred_f, matches))
+    return out
+
+
+def draw_gt_vs_pred(img_path: Path, gt: Boxes, pred: Boxes, matches: list):
+    """PIL image with ground-truth boxes in green (labeled with class and
+    its best-matching IoU) and every filtered prediction in red (labeled
+    with class and confidence) — a visual check for whether low scores come
+    from a coordinate/scale bug (boxes nowhere near each other) or genuine
+    localization imprecision (boxes overlapping but not tightly)."""
+    from PIL import ImageDraw
+
+    with Image.open(img_path) as im:
+        im = ImageOps.exif_transpose(im).convert("RGB")
+    draw = ImageDraw.Draw(im)
+    iou_by_gt = {gi: iou for gi, _, iou in matches}
+    for gi in range(len(gt.class_names)):
+        x1, y1, x2, y2 = gt.xyxy[gi]
+        draw.rectangle([x1, y1, x2, y2], outline=(0, 200, 0), width=3)
+        draw.text((x1, max(0, y1 - 12)),
+                  f"GT:{gt.class_names[gi]} iou={iou_by_gt.get(gi, 0.0):.2f}", fill=(0, 200, 0))
+    for pi in range(len(pred.class_names)):
+        x1, y1, x2, y2 = pred.xyxy[pi]
+        draw.rectangle([x1, y1, x2, y2], outline=(220, 0, 0), width=2)
+        draw.text((x1, y2 + 2), f"pred:{pred.class_names[pi]} {pred.confidence[pi]:.2f}",
+                  fill=(220, 0, 0))
+    return im
+
+
 def _pct(x: float) -> float:
     return round(100.0 * x, 1)
 

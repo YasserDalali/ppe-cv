@@ -6,9 +6,11 @@ from conftest import write_png
 from ppe.config import CANONICAL_CLASSES, Config
 from ppe.evaluate import (
     SHARED_CANDIDATES,
+    best_matches,
     cameras_at_fps,
     compare_all,
     diagnose_eval_set,
+    draw_gt_vs_pred,
     evaluate_predictor,
     load_eval_set,
     match_counts,
@@ -213,6 +215,48 @@ def test_print_diagnostics_smoke(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "NO PREDICTIONS AT ALL" in out
     assert "1 images" in out
+
+
+def test_best_matches_pairs_closest_prediction(tmp_path):
+    d = make_eval_set(tmp_path / "es", {"a": [(0, 0.5, 0.5, 0.5, 0.5)]})  # GT xyxy [8,8,24,24]
+    predictor = StubPredictor(CANONICAL_CLASSES, {
+        "a": boxes([(8, 8, 24, 24, "Person", 0.9), (0, 0, 2, 2, "Person", 0.5)])})
+    result = best_matches(predictor, d, ["person"])
+    assert len(result) == 1
+    img_path, gt_f, pred_f, matches = result[0]
+    assert img_path.stem == "a"
+    assert len(matches) == 1
+    gi, best_pi, iou = matches[0]
+    assert gi == 0
+    assert best_pi == 0  # the close box, not the far one
+    assert iou > 0.99
+
+
+def test_best_matches_filters_and_orders_by_image_names(tmp_path):
+    d = make_eval_set(tmp_path / "es", {
+        "a": [(0, 0.5, 0.5, 0.5, 0.5)],
+        "b": [(0, 0.3, 0.3, 0.2, 0.2)],
+        "c": [(0, 0.7, 0.7, 0.2, 0.2)],
+    })
+    predictor = StubPredictor(CANONICAL_CLASSES, {})
+    result = best_matches(predictor, d, ["person"], image_names=["c.png", "a.png"])
+    assert [r[0].name for r in result] == ["c.png", "a.png"]
+
+
+def test_best_matches_respects_max_images(tmp_path):
+    d = make_eval_set(tmp_path / "es", {s: [(0, 0.5, 0.5, 0.3, 0.3)] for s in ("a", "b", "c")})
+    predictor = StubPredictor(CANONICAL_CLASSES, {})
+    result = best_matches(predictor, d, ["person"], max_images=2)
+    assert len(result) == 2
+
+
+def test_draw_gt_vs_pred_returns_same_size_rgb_image(tmp_path):
+    d = make_eval_set(tmp_path / "es", {"a": [(0, 0.5, 0.5, 0.5, 0.5)]})
+    predictor = StubPredictor(CANONICAL_CLASSES, {"a": boxes([(8, 8, 24, 24, "Person", 0.9)])})
+    (img_path, gt_f, pred_f, matches), = best_matches(predictor, d, ["person"])
+    out = draw_gt_vs_pred(img_path, gt_f, pred_f, matches)
+    assert out.size == (32, 32)
+    assert out.mode == "RGB"
 
 
 def test_compare_all_six_rows(tmp_path):
