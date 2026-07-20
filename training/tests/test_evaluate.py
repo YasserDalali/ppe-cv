@@ -6,6 +6,8 @@ from conftest import write_png
 from ppe.config import CANONICAL_CLASSES, Config
 from ppe.evaluate import (
     SHARED_CANDIDATES,
+    _video_id,
+    alignment_stats,
     best_matches,
     cameras_at_fps,
     compare_all,
@@ -15,6 +17,7 @@ from ppe.evaluate import (
     load_eval_set,
     match_counts,
     model_a_val,
+    print_alignment_summary,
     print_diagnostics,
     shared_class_list,
 )
@@ -127,6 +130,33 @@ def test_load_eval_set_respects_exif_orientation(tmp_path):
     # (Denormalizing against the raw, un-rotated 20x40 pixel grid instead
     # would give the wrong box [16, 10, 20, 30] — this is what the bug did.)
     assert gt.xyxy.tolist() == [[32.0, 5.0, 40.0, 15.0]]
+
+
+def test_load_eval_set_converts_segmentation_polygons_to_boxes(tmp_path):
+    """Regression test: Roboflow instance-segmentation exports (e.g. OCP,
+    which was annotated with polygons rather than plain boxes) write label
+    lines as 'cls x1 y1 x2 y2 ... xn yn' — an arbitrary-length vertex list,
+    not 'cls cx cy w h'. load_eval_set must take the axis-aligned bounding
+    box of the polygon (min/max over all vertices), matching what
+    Ultralytics' own loader does for training/val via segments2boxes().
+    Before the fix, load_eval_set blindly read parts[1:5] as (cx, cy, bw,
+    bh), i.e. the first two polygon vertices — producing a garbage box."""
+    es = tmp_path / "es"
+    (es / "images").mkdir(parents=True)
+    (es / "labels").mkdir(parents=True)
+    write_png(es / "images" / "a.png")
+    # A diamond polygon with vertices at (0.25,0.5) (0.5,0.25) (0.75,0.5)
+    # (0.5,0.75) — bounding box is x:[0.25,0.75] y:[0.25,0.75].
+    (es / "labels" / "a.txt").write_text(
+        "1 0.25 0.5 0.5 0.25 0.75 0.5 0.5 0.75\n")
+    (es / "data.yaml").write_text(yaml.safe_dump(
+        {"nc": len(CANONICAL_CLASSES), "names": CANONICAL_CLASSES}))
+
+    items = load_eval_set(es)
+    assert len(items) == 1
+    _, gt = items[0]
+    assert gt.xyxy.tolist() == [[8.0, 8.0, 24.0, 24.0]]
+    assert gt.class_names == ["helmet"]
 
 
 def test_evaluate_perfect_and_empty_predictor(tmp_path):
@@ -257,6 +287,78 @@ def test_draw_gt_vs_pred_returns_same_size_rgb_image(tmp_path):
     out = draw_gt_vs_pred(img_path, gt_f, pred_f, matches)
     assert out.size == (32, 32)
     assert out.mode == "RGB"
+
+
+def test_video_id_parses_ocp_frame_prefix():
+    # OCP frames are merge.py-prefixed "ocp__" + Roboflow's own
+    # "<orig stem>.rf.<hash>.jpg" suffix; the video/session id is the
+    # "VID_<date>_<time>" segment in between.
+    name = "ocp__VID_20260716_163549_f00211_jpg.rf.8bba786d29eb2336d1d4f4f395a8a3c6.jpg"
+    assert _video_id(name) == "VID_20260716_163549"
+
+
+def test_video_id_falls_back_to_full_name_when_not_a_video_frame():
+    assert _video_id("sh17__some_photo_003.jpg") == "sh17__some_photo_003.jpg"
+
+
+def test_alignment_stats_computes_normalized_offset_and_scale(tmp_path):
+    # GT on a 32x32 canvas at (0.5,0.5,0.5,0.5) -> xyxy [8,8,24,24],
+    # center (16,16), size 16x16.
+    d = make_eval_set(tmp_path / "es", {"a": [(0, 0.5, 0.5, 0.5, 0.5)]})
+    # Prediction: center shifted to (20,18), size (8,16) -> xyxy [16,10,24,26].
+    predictor = StubPredictor(CANONICAL_CLASSES,
+                              {"a": boxes([(16, 10, 24, 26, "Person", 0.9)])})
+    records = alignment_stats(predictor, d, ["person"])
+    assert len(records) == 1
+    r = records[0]
+    assert r.image == "a.png"
+    assert r.gt_class == "Person"
+    assert r.dx_norm == round((20 - 16) / 32, 4)
+    assert r.dy_norm == round((18 - 16) / 32, 4)
+    assert r.scale_w == round(8 / 16, 3)
+    assert r.scale_h == round(16 / 16, 3)
+
+
+def test_alignment_stats_skips_images_with_no_predictions_at_all(tmp_path):
+    d = make_eval_set(tmp_path / "es", {"a": [(0, 0.5, 0.5, 0.5, 0.5)]})
+    empty = StubPredictor(CANONICAL_CLASSES, {})
+    assert alignment_stats(empty, d, ["person"]) == []
+
+
+def test_alignment_stats_ties_broken_by_center_distance(tmp_path):
+    # GT xyxy [8,8,24,24] (center 16,16). Two predictions both with IoU==0
+    # (zero overlap) but different distances -- the closer one should win.
+    d = make_eval_set(tmp_path / "es", {"a": [(0, 0.5, 0.5, 0.5, 0.5)]})
+    predictor = StubPredictor(CANONICAL_CLASSES, {"a": boxes([
+        (0, 0, 1, 1, "Person", 0.9),      # far: center (0.5, 0.5)
+        (24, 24, 30, 30, "Person", 0.5),  # closer: center (27, 27)
+    ])})
+    records = alignment_stats(predictor, d, ["person"])
+    assert len(records) == 1
+    # center of the closer box is (27,27) vs gt center (16,16)
+    assert records[0].dx_norm == round((27 - 16) / 32, 4)
+    assert records[0].dy_norm == round((27 - 16) / 32, 4)
+
+
+def test_print_alignment_summary_smoke(capsys):
+    from ppe.evaluate import AlignmentRecord
+
+    records = [
+        AlignmentRecord(image="ocp__VID_1_f0.jpg", video="VID_1", gt_class="Person",
+                        iou=0.3, dx_norm=0.1, dy_norm=0.1, scale_w=0.9, scale_h=0.9,
+                        exif_orientation=6),
+        AlignmentRecord(image="ocp__VID_1_f1.jpg", video="VID_1", gt_class="Person",
+                        iou=0.28, dx_norm=0.11, dy_norm=0.09, scale_w=0.91, scale_h=0.88,
+                        exif_orientation=6),
+        AlignmentRecord(image="ocp__VID_2_f0.jpg", video="VID_2", gt_class="helmet",
+                        iou=0.4, dx_norm=-0.2, dy_norm=0.02, scale_w=1.1, scale_h=1.05,
+                        exif_orientation=1),
+    ]
+    print_alignment_summary(records)
+    out = capsys.readouterr().out
+    assert "VID_1" in out and "VID_2" in out
+    assert "dx_norm" in out and "dy_norm" in out
+    assert "scale_w" in out and "scale_h" in out
 
 
 def test_compare_all_six_rows(tmp_path):

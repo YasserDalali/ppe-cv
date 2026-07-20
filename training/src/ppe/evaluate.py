@@ -10,6 +10,8 @@ speed) come from Ultralytics model.val().
 from __future__ import annotations
 
 import math
+import re
+import statistics
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -66,9 +68,21 @@ def load_eval_set(eval_set_dir: Path) -> list:
                 if not parts:
                     continue
                 cid = int(parts[0])
-                cx, cy, bw, bh = (float(v) for v in parts[1:5])
-                rows.append([(cx - bw / 2) * w, (cy - bh / 2) * h,
-                             (cx + bw / 2) * w, (cy + bh / 2) * h])
+                coords = [float(v) for v in parts[1:]]
+                if len(coords) == 4:
+                    cx, cy, bw, bh = coords
+                    x1, y1 = cx - bw / 2, cy - bh / 2
+                    x2, y2 = cx + bw / 2, cy + bh / 2
+                else:
+                    # YOLO segmentation polygon (Roboflow instance-seg
+                    # exports, e.g. OCP: 'cls x1 y1 x2 y2 ... xn yn').
+                    # Bounding box = min/max over vertices, same conversion
+                    # Ultralytics' own loader applies via segments2boxes()
+                    # for train/val — otherwise eval GT is built from just
+                    # the first two polygon vertices misread as (cx,cy,w,h).
+                    xs, ys = coords[0::2], coords[1::2]
+                    x1, y1, x2, y2 = min(xs), min(ys), max(xs), max(ys)
+                rows.append([x1 * w, y1 * h, x2 * w, y2 * h])
                 cls.append(str(names[cid]))
         gt = Boxes(np.array(rows, dtype=float).reshape(-1, 4), cls,
                    np.ones(len(cls)))
@@ -315,6 +329,143 @@ def draw_gt_vs_pred(img_path: Path, gt: Boxes, pred: Boxes, matches: list):
         draw.text((x1, y2 + 2), f"pred:{pred.class_names[pi]} {pred.confidence[pi]:.2f}",
                   fill=(220, 0, 0))
     return im
+
+
+_VIDEO_ID_RE = re.compile(r"(VID_\d+_\d+)_f\d+")
+
+
+def _video_id(image_name: str) -> str:
+    """Best-effort video/session id parsed from an OCP frame filename like
+    'ocp__VID_20260716_163549_f00211_jpg.rf.<hash>.jpg' ->
+    'VID_20260716_163549'. Falls back to the full filename for anything that
+    doesn't match (non-OCP sources, or a naming scheme change), so those
+    still group sensibly (each alone) instead of erroring."""
+    m = _VIDEO_ID_RE.search(image_name)
+    return m.group(1) if m else image_name
+
+
+def _center_dist(a: np.ndarray, b: np.ndarray) -> float:
+    acx, acy = (a[0] + a[2]) / 2, (a[1] + a[3]) / 2
+    bcx, bcy = (b[0] + b[2]) / 2, (b[1] + b[3]) / 2
+    return math.hypot(acx - bcx, acy - bcy)
+
+
+@dataclass
+class AlignmentRecord:
+    """The geometric relationship between one ground-truth box and its
+    closest prediction (by IoU, ties broken by center distance), ignoring
+    class. Offsets are normalized by image width/height so they're
+    comparable across images of different resolutions; scale is the simple
+    predicted/ground-truth size ratio per axis."""
+    image: str
+    video: str
+    gt_class: str
+    iou: float
+    dx_norm: float
+    dy_norm: float
+    scale_w: float
+    scale_h: float
+    exif_orientation: int | None
+
+
+def alignment_stats(predictor, eval_set_dir: Path, shared: list) -> list:
+    """Per-GT-box offset/scale relative to the closest prediction on the
+    same image, across an eval set — the raw material for telling apart two
+    stories behind a "boxes overlap but never tightly" pattern:
+
+    - GENUINE localization imprecision (e.g. compressed/blurry video
+      frames): offsets and scale ratios scatter with no consistent
+      direction or magnitude, including frame-to-frame within the same
+      video.
+    - A SOURCE-SIDE coordinate bug (annotations exported at a different
+      resolution/crop than the images now being scored): offsets/scale
+      cluster tightly around a roughly constant, often non-zero value —
+      because the same misregistration applies to every box on a
+      misregistered image, or every image from one export batch.
+
+    Images with zero raw predictions are skipped (nothing to compare
+    against); see diagnose_eval_set for that failure mode instead.
+    """
+    shared_norm = [normalize_name(s) for s in shared]
+    items = load_eval_set(eval_set_dir)
+    out = []
+    for img_path, gt in items:
+        with Image.open(img_path) as im:
+            width, height = ImageOps.exif_transpose(im).size
+            orientation = im.getexif().get(0x0112)
+        gt_f = _filter(gt, shared_norm)
+        pred_f = _filter(predictor.predict(img_path), shared_norm)
+        if not len(pred_f.class_names):
+            continue
+        for gi in range(len(gt_f.class_names)):
+            g = gt_f.xyxy[gi]
+            best_iou, best_pi, best_dist = 0.0, None, math.inf
+            for pi in range(len(pred_f.class_names)):
+                p = pred_f.xyxy[pi]
+                iou = _iou(g, p)
+                dist = _center_dist(g, p)
+                if best_pi is None or iou > best_iou or (iou == best_iou and dist < best_dist):
+                    best_iou, best_pi, best_dist = iou, pi, dist
+            p = pred_f.xyxy[best_pi]
+            gcx, gcy = (g[0] + g[2]) / 2, (g[1] + g[3]) / 2
+            gw, gh = g[2] - g[0], g[3] - g[1]
+            pcx, pcy = (p[0] + p[2]) / 2, (p[1] + p[3]) / 2
+            pw, ph = p[2] - p[0], p[3] - p[1]
+            out.append(AlignmentRecord(
+                image=img_path.name, video=_video_id(img_path.name),
+                gt_class=gt_f.class_names[gi], iou=round(best_iou, 3),
+                dx_norm=round((pcx - gcx) / width, 4),
+                dy_norm=round((pcy - gcy) / height, 4),
+                scale_w=round(pw / gw, 3) if gw > 0 else float("nan"),
+                scale_h=round(ph / gh, 3) if gh > 0 else float("nan"),
+                exif_orientation=orientation,
+            ))
+    return out
+
+
+def _mean_std(xs: list) -> tuple:
+    if not xs:
+        return 0.0, 0.0
+    return statistics.fmean(xs), statistics.pstdev(xs)
+
+
+def print_alignment_summary(records: list) -> None:
+    """Aggregate + per-video breakdown of alignment_stats() output, with a
+    verdict aimed at the genuine-imprecision vs. source-side-coordinate-bug
+    question: if the offset is tight WITHIN a video but differs ACROSS
+    videos, that points at something constant per export/recording session
+    (source-side) rather than per-frame noise (localization imprecision)."""
+    if not records:
+        print("No alignment records (no images had both GT and predictions).")
+        return
+
+    fields = ("dx_norm", "dy_norm", "scale_w", "scale_h")
+    print(f"=== alignment summary over {len(records)} matched GT boxes ===")
+    overall = {f: _mean_std([getattr(r, f) for r in records]) for f in fields}
+    for f in fields:
+        mean, std = overall[f]
+        print(f"  overall {f}: mean={mean:+.4f}  std={std:.4f}")
+
+    by_video: dict = {}
+    for r in records:
+        by_video.setdefault(r.video, []).append(r)
+    multi = {v: rs for v, rs in by_video.items() if len(rs) >= 2}
+    print(f"\n{len(by_video)} distinct video/session groups "
+          f"({len(multi)} with >=2 matched boxes)")
+    for video, rs in sorted(by_video.items()):
+        stats = {f: _mean_std([getattr(r, f) for r in rs]) for f in fields}
+        summary = "  ".join(f"{f}={stats[f][0]:+.3f}±{stats[f][1]:.3f}" for f in fields)
+        print(f"  {video:30s} n={len(rs):3d}  {summary}")
+
+    if multi:
+        within_std = {f: statistics.fmean([_mean_std([getattr(r, f) for r in rs])[1]
+                                           for rs in multi.values()]) for f in fields}
+        print("\nmean WITHIN-video std vs. OVERALL (cross-video) std "
+              "(within << overall -> per-video/export constant, points at a "
+              "source-side bug; within ~= overall -> per-frame noise, points "
+              "at genuine localization imprecision):")
+        for f in fields:
+            print(f"  {f}: within={within_std[f]:.4f}  overall={overall[f][1]:.4f}")
 
 
 def _pct(x: float) -> float:
