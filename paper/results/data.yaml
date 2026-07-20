@@ -1,0 +1,16 @@
+path: /content/ppe-work/fused
+train: train/images
+val: val/images
+test: test/images
+nc: 10
+names:
+- Person
+- helmet
+- vest
+- gloves
+- boots
+- goggles
+- no_helmet
+- no_gloves
+- no_goggle
+- gas mask

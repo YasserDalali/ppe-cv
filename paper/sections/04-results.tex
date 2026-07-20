@@ -1,17 +1,13 @@
 \section{Results and Analysis}\label{sec:results}
 
-% NOTE: All measured values in this section are \phX placeholders pending the
-% training rerun (fixed SH17 remap + gas-mask class). Drop numbers in from the
-% rerun log; do not reuse figures from the earlier fusion run.
-
-The central result of this section is the generic-versus-adapted comparison of Section~\ref{sec:results-comparison}: identical evaluation imagery, one detector trained only on the public construction benchmark, one adapted for industrial and chemical conditions. The section then reports the adapted detector's aggregate and per-class behavior (\phX\% precision, \phX\% recall, \phX\% mAP@50 at \phX~ms per frame on a Tesla T4-class GPU), error structure, and runtime feasibility.
+The central result of this section is the generic-versus-adapted comparison of Section~\ref{sec:results-comparison}: identical evaluation imagery, one detector trained only on the public construction benchmark, one adapted for industrial and chemical conditions. The section then reports the adapted detector's aggregate and per-class behavior (78.0\% precision, 63.5\% recall, 68.6\% mAP@50 at 9.35~ms per frame on a Tesla T4-class GPU), error structure, and runtime feasibility.
 
 \subsection{Generic vs.\ Industrial-Adapted Model}\label{sec:results-comparison}
 
 Table~\ref{tab:comparison} holds the central experiment. The generic baseline is competitive on the construction imagery it was built for (58.1\% precision, 64.4\% recall, 59.1\% mAP@50 on its own validation split \cite{roboflowppe}), so the comparison asks what survives contact with an operating chemical plant. Both models are evaluated under the protocol of Section~\ref{sec:methods-comparison} on the held-out OCP site set and on the industrial proxy set. Figure~\ref{fig:comparison} plots the headline OCP comparison.
 
 \begin{table}[t]
-\caption{Central experiment: generic construction-benchmark detector vs.\ industrial-adapted model. Shared-class metrics per the protocol of Section~\ref{sec:methods-comparison}; cross-domain values pending the evaluation rerun.}
+\caption{Central experiment: generic construction-benchmark detector vs.\ industrial-adapted model. Shared-class metrics (person, helmet, vest, gloves, and their negative states; conf=0.25, IoU=0.5) per the protocol of Section~\ref{sec:methods-comparison}.}
 \label{tab:comparison}
 \centering
 \footnotesize
@@ -21,21 +17,18 @@ Table~\ref{tab:comparison} holds the central experiment. The generic baseline is
 Model & Evaluation set & P (\%) & R (\%) & mAP@50 (\%) \\
 \midrule
 Generic \cite{roboflowppe} & Own val.\ (construction) & 58.1 & 64.4 & 59.1 \\
-Generic \cite{roboflowppe} & Industrial proxy & \phX & \phX & \phX \\
-Generic \cite{roboflowppe} & OCP site imagery & \phX & \phX & \phX \\
+Generic \cite{roboflowppe} & Industrial proxy & 1.5 & 2.2 & 0.4 \\
+Generic \cite{roboflowppe} & OCP site imagery & 29.3 & 26.2 & 18.5 \\
 \addlinespace
-Adapted (ours) & Fused validation & \phX & \phX & \phX \\
-Adapted (ours) & Industrial proxy & \phX & \phX & \phX \\
-Adapted (ours) & OCP site imagery & \phX & \phX & \phX \\
+Adapted (ours) & Fused validation & 75.6 & 64.6 & 48.6 \\
+Adapted (ours) & Industrial proxy & 73.5 & 69.2 & 49.6 \\
+Adapted (ours) & OCP site imagery & 84.9 & 87.4 & 65.5 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{figure}[t]
 \centering
-% TODO: replace the provisional bar heights with measured values from the
-% comparison rerun (OCP rows of Table tab:comparison); the red [X] labels
-% mark every value as a placeholder until then.
 \begin{tikzpicture}
 \begin{axis}[
   width=\columnwidth, height=3.8cm,
@@ -48,24 +41,26 @@ Adapted (ours) & OCP site imagery & \phX & \phX & \phX \\
   ymajorgrids, major grid style={gray!25},
   axis line style={gray!60},
   legend style={font=\footnotesize, draw=none, fill=none, at={(0.5,1.02)}, anchor=south, legend columns=-1},
-  nodes near coords={{\color{red}[X]}},
+  nodes near coords,
   every node near coord/.append style={font=\scriptsize}
 ]
-\addplot[fill=gray!40, draw=gray!70] coordinates {(Precision,40) (Recall,45) (mAP@50,38)};
-\addplot[pattern=north east lines, pattern color=gray!90, draw=gray!70] coordinates {(Precision,72) (Recall,64) (mAP@50,68)};
+\addplot[fill=gray!40, draw=gray!70] coordinates {(Precision,29.3) (Recall,26.2) (mAP@50,18.5)};
+\addplot[pattern=north east lines, pattern color=gray!90, draw=gray!70] coordinates {(Precision,84.9) (Recall,87.4) (mAP@50,65.5)};
 \legend{Generic (Roboflow-only)\,, Adapted (ours)}
 \end{axis}
 \end{tikzpicture}
-\caption{Central comparison on held-out OCP chemical-plant imagery (scaffold). Bar heights are provisional and every value is pending the evaluation rerun (marked [X]); the figure is populated from the OCP rows of Table~\ref{tab:comparison}.}
+\caption{Central comparison on held-out OCP chemical-plant imagery: precision, recall, and mAP@50 for the generic construction-benchmark detector and the industrial-adapted model, from the OCP rows of Table~\ref{tab:comparison}.}
 \label{fig:comparison}
 \end{figure}
 
-Beyond aggregate metrics, Figure~\ref{fig:ocp-compare} compares the two models qualitatively on identical OCP frames under the dust, oblique camera angles, and site uniforms that motivated the adaptation; publication of the underlying site frames is subject to imagery clearance.
+The comparison splits into two regimes. On the construction imagery it was built for, the generic detector is respectable (59.1\% mAP@50); moved onto industrial imagery it has never seen configured for, its mAP@50 collapses to 0.4\% on the industrial proxy set and recovers only to 18.5\% on OCP site imagery. The adapted model, scored on the same frames under the same fixed confidence and IoU thresholds, holds 49.6\% and 65.5\% mAP@50 respectively. Two points follow. First, the industrial proxy result is the more severe failure of the two, and the more informative one: the proxy set draws on SH17 and gas-mask imagery, industrial scenes that are still generic rather than OCP-specific, so the near-total collapse there shows that ordinary domain shift away from Roboflow PPE-Detection's construction framing already defeats the generic model, before dust, oblique CCTV angles, or site uniforms enter the picture at all. Second, the OCP site gap (18.5\% vs.\ 65.5\%) is the deployment-relevant number: it is what separates a system a safety team could act on from one it could not, and it is the number the abstract and conclusion lead with. Part of the generic model's collapse is plausibly a calibration artifact rather than pure detection failure (a fixed conf=0.25 threshold tuned implicitly on construction imagery need not carry over to a different domain), which is one reason Section~\ref{sec:discussion} treats the training-set-size confound between the two models as an open limitation rather than a settled point.
+
+Beyond aggregate metrics, Figure~\ref{fig:ocp-compare} compares the two models qualitatively on identical OCP frames under the dust, oblique camera angles, and site uniforms that motivated the adaptation.
 
 \begin{figure}[t]
 \centering
-\fbox{\parbox[c][2.4cm][c]{0.9\columnwidth}{\centering Placeholder: side-by-side detections,\\generic vs.\ industrial-adapted model,\\on identical OCP site imagery.}}
-\caption{Generic vs.\ industrial-adapted model on identical site imagery. TODO: replace placeholder once cleared site frames are available for publication.}
+\includegraphics[width=\columnwidth]{figures/ocp_qualitative.jpg}
+\caption{Generic vs.\ industrial-adapted model on an identical OCP site frame. The adapted detector (left, green) correctly localizes Person, vest, and helmet at high confidence ($\geq$0.82) and adds boots; the generic detector (right, red) misses the vest entirely, places a spurious low-confidence ``gloves'' box on background pipework, and raises a false ``no-helmet'' violation alert directly on the worker's head, despite the worker wearing one. That last error is the concrete version of the false-alarm risk raised in Section~\ref{sec:related}: a detector that hallucinates violations shifts the vigilance burden downstream instead of removing it.}
 \label{fig:ocp-compare}
 \end{figure}
 
@@ -73,61 +68,60 @@ Beyond aggregate metrics, Figure~\ref{fig:ocp-compare} compares the two models q
 
 \begin{figure}[t]
 \centering
-% TODO: regenerate from rerun (fixed SH17 remap + gas-mask class); current file is from the superseded fusion run
 \includegraphics[width=\columnwidth]{figures/dashboard.png}
 \caption{Training dashboard for the fused-dataset run: box, classification, and DFL loss curves (train and validation) with precision, recall, mAP@50, and mAP@50--95 per epoch.}
 \label{fig:dashboard}
 \end{figure}
 
-Figure~\ref{fig:dashboard} summarizes the \phX-epoch training run. Box, classification, and distribution focal (DFL) losses decline from \phX, \phX, and \phX to \phX, \phX, and \phX, with validation losses tracking training throughout; precision and recall stabilize after approximately \phX epochs at \phX\% and \phX\%, and the final model attains \phX\% mAP@50 and \phX\% mAP@50--95. All headline values come from the best checkpoint (\texttt{best.pt}); unless noted otherwise, metrics use the \phX split of the fused dataset, consistently across Table~\ref{tab:perclass} and Section~\ref{sec:results-errors}.
-% TODO: decide val split vs. held-out test split for headline tables (structure.md open item); a held-out test set is the stronger claim.
+Figure~\ref{fig:dashboard} summarizes the 50-epoch training run. Box, classification, and distribution focal (DFL) losses decline from 1.38, 2.55, and 1.39 to 0.90, 0.59, and 1.04, with validation losses tracking training losses throughout and no divergence that would indicate overfitting. The training-time validation curve stabilizes by around epoch 25: mAP@50 settles into the 65--68\% band and closes the run at 68.4\% (mAP@50--95 40.6\%), and recall plateaus near 60--66\%, while precision stays comparatively noisy epoch-to-epoch even after the loss curves flatten, ending at 74.4\%. All headline values used elsewhere in this section come from a separate evaluation of the best checkpoint (\texttt{best.pt}) on the val split, which is why Table~\ref{tab:perclass}'s all-classes row (78.0\% precision, 63.5\% recall, 68.6\% mAP@50) is close to but not identical to the epoch-50 curve above: it scores all ten fused classes with Ultralytics' own validation routine, whereas Table~\ref{tab:comparison} is restricted to the seven classes shared with the generic baseline under a fixed-threshold harness (Section~\ref{sec:methods-comparison}). The two tables answer different questions (overall detector quality versus a fair head-to-head) and are not meant to reduce to the same number.
 
 \subsection{Detection Performance by Class}\label{sec:results-perclass}
 
-Table~\ref{tab:perclass} breaks performance down by class. The fused dataset inherits uneven per-class support from its sources \cite{roboflowppe,ahmad2024sh17,roboflowgasmasks}: person, helmet, and vest dominate, while negative-state classes and gas mask have far fewer validation instances; low-support rows should be read alongside the caveats of Section~\ref{sec:results-errors}.
+Table~\ref{tab:perclass} breaks performance down by class. Person, vest, and boots have the deepest validation support (379, 306, and 289 images); helmet, gas mask, and gloves are mid-tier (137, 65, and 63); the negative-state classes no\_helmet (12) and no\_gloves (33) are thin, and no\_goggle has none at all. Low-support rows should be read alongside the caveats of Section~\ref{sec:results-errors}.
 
 \begin{table}[t]
-\caption{Per-class detection performance on the validation split. All values pending training rerun.}
+\caption{Per-class detection performance on the validation split.}
 \label{tab:perclass}
 \centering
 \begin{tabular}{lccc}
 \toprule
 Class & Precision (\%) & Recall (\%) & mAP@50 (\%) \\
 \midrule
-Person      & \phX & \phX & \phX \\
-helmet      & \phX & \phX & \phX \\
-no\_helmet  & \phX & \phX & \phX \\
-vest        & \phX & \phX & \phX \\
-gloves      & \phX & \phX & \phX \\
-no\_gloves  & \phX & \phX & \phX \\
-goggles     & \phX & \phX & \phX \\
-no\_goggle  & \phX & \phX & \phX \\
-boots       & \phX & \phX & \phX \\
-gas mask    & \phX & \phX & \phX \\
+Person      & 86.8 & 86.3 & 90.2 \\
+helmet      & 75.6 & 53.6 & 59.8 \\
+no\_helmet  & 68.8 & 54.8 & 57.0 \\
+vest        & 87.6 & 81.0 & 85.4 \\
+gloves      & 60.3 & 30.6 & 33.8 \\
+no\_gloves  & 66.0 & 38.3 & 45.1 \\
+goggles     & 86.6 & 84.0 & 86.2 \\
+no\_goggle  & 0.0 & 0.0 & 0.0 \\
+boots       & 81.8 & 64.2 & 73.6 \\
+gas mask    & 88.5 & 79.1 & 86.1 \\
 \midrule
-\textbf{All classes} & \phX & \phX & \phX \\
+\textbf{All classes} & 78.0 & 63.5 & 68.6 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
+Three classes clear 85\% mAP@50: goggles (86.2\%), gas mask (86.1\%), and vest (85.4\%). That is notable because goggles and gas mask are exactly the chemical-specific classes public construction benchmarks under-represent (Section~\ref{sec:methods-dataset}); the composite dataset appears to have closed that gap rather than merely diluting it. gloves is the clear outlier on the low end (33.8\% mAP@50, 30.6\% recall), consistent with it being the smallest, most easily occluded object class in the label set. no\_goggle's 0.0\% row is a direct consequence of the class receiving zero training and validation instances from any of the four sources (Section~\ref{sec:results-errors}), not a detector failure, and should be read as missing data rather than a negative result.
+
 \subsection{Error Analysis}\label{sec:results-errors}
 
-Confusion concentrates among visually similar class pairs (Fig.~\ref{fig:confusion}). The equipment/absence pairs (helmet vs.\ no\_helmet, goggles vs.\ no\_goggle) are separated by fine-grained head-region cues that degrade with distance and partial occlusion; \phX\% of no\_helmet errors fall into this pattern. Dark headwear and hoods account for a further \phX\% of helmet-related confusions, and gloves at long range are confused with bare hands in \phX\% of cases.
+The confusion matrix (Fig.~\ref{fig:confusion}) shows the dominant error mode is missed detection, not confusion between visually similar equipped/unequipped pairs: for every class, the largest off-diagonal mass falls in the background row (predictions the detector never made) rather than in a sibling PPE class. Helmet illustrates this: 59\% of true helmet instances are detected correctly, 37\% are missed outright, and only 6\% are confused with no\_helmet. Confusion between a class and its negative counterpart is real, but it is a minor contributor next to plain misses. The same pattern holds for no\_gloves (47\% correctly detected, with most of the remainder split between misses and confusion with gloves or boots) and boots (70\% correct, 24\% missed). gloves is the weakest diagonal in the matrix (33\% correctly detected, matching its 33.8\% mAP@50 in Table~\ref{tab:perclass}): a thin, frequently occluded object at CCTV range is the detector's hardest case, consistent with the small-object limitation discussed in Section~\ref{sec:discussion}. no\_goggle has no row or column at all in the matrix: no source dataset contributed a single no\_goggle instance to training or validation, so Table~\ref{tab:perclass}'s 0.0\% row is a data-absence artifact rather than a detection failure. Section~\ref{sec:discussion} returns to this gap.
 
 \begin{figure}[t]
 \centering
-% TODO: replace with the normalized confusion matrix exported from the rerun
-% (Ultralytics confusion_matrix_normalized.png), cropped to the ten fused classes.
-\fbox{\parbox[c][2.6cm][c]{0.9\columnwidth}{\centering Placeholder: normalized confusion matrix\\of the adapted detector on the fused validation split\\(from the training rerun).}}
-\caption{Normalized confusion matrix of the adapted detector (placeholder pending the training rerun).}
+\includegraphics[width=\columnwidth]{figures/confusion_matrix.png}
+\caption{Normalized confusion matrix of the adapted detector on the fused validation split. Rows are predicted class, columns are true class; the background row/column captures missed detections and spurious predictions respectively. no\_goggle has no instances and is empty by construction.}
 \label{fig:confusion}
 \end{figure}
 
-Class support shapes these figures: helmet holds \phX validation instances against \phX for no\_helmet, and the same asymmetry applies to the other equipment/absence pairs. Boots, no\_goggle, and gas mask each fall below \phX instances, so their metrics are indicative rather than conclusive. How much of the error structure stems from multi-source fusion, nano-scale capacity, or support imbalance is a question the rerun's per-class numbers will settle.
-% TODO: after rerun, decide framing per [OPEN: results_posture] in chapter-plan.md (own weak classes openly vs. relax the caveats).
+Class support on the validation split shapes these figures directly: no\_goggle has zero validation instances (also zero in training, Section~\ref{sec:methods-dataset}), so its row in Table~\ref{tab:perclass} reflects data absence rather than model failure. no\_helmet (12 images), no\_gloves (33), and gloves (63) are the next-thinnest classes in the validation split, and their precision, recall, and mAP@50 are correspondingly the least reliable per-class estimates in Table~\ref{tab:perclass}. How much of gloves' remaining weakness traces to multi-source fusion noise, nano-scale detector capacity, or simply the class's small physical footprint in a wide CCTV frame is not fully separable from this run; a class-aware SH17 cap that preserves rare-class density (Section~\ref{sec:discussion}) is one way a future run could help isolate it.
 
 \subsection{Runtime and Deployment Feasibility}\label{sec:results-runtime}
 
-Single-frame latency on a Tesla T4-class GPU is \phX~ms end to end: \phX~ms preprocessing, \phX~ms inference, and \phX~ms postprocessing at $640\times640$ resolution. At an analysis rate of \phX frames per second per camera, one GPU of this class sustains approximately \phX concurrent camera feeds, before any batching across streams.
+Single-frame latency on a Tesla T4-class GPU is 9.35~ms end to end: 2.12~ms preprocessing, 4.99~ms inference, and 2.24~ms postprocessing at $640\times640$ resolution. At an analysis rate of 5 frames per second per camera, one GPU of this class sustains approximately 21 concurrent camera feeds, before any batching across streams.
+
+Inference alone is 53\% of the per-frame budget, consistent with the model's small footprint (Section~\ref{sec:methods-training}); the rest is fixed pre/postprocessing overhead that would not shrink further with a smaller detector. The 21-camera figure is a lower bound rather than a target: it assumes each frame is processed independently with no cross-stream batching, which a production deployment would add, and it says nothing about network or storage load from the alert-dispatch stage (Section~\ref{sec:methods-alerts}).
 
 The model is small (3.0M parameters, 8.1 GFLOPs, a 6.3~MB weight file \cite{ultralytics2023}), in line with edge-oriented PPE deployments \cite{edgeyolo2024}, so the detection workload for a multi-camera installation concentrates on one commodity GPU server on the existing network, with no per-camera hardware.

@@ -1,0 +1,78 @@
+{
+  "seed": 0,
+  "fractions": {
+    "train": 0.7,
+    "val": 0.15,
+    "test": 0.15
+  },
+  "dup_factors": {
+    "ocp": 3,
+    "gasmask": 1
+  },
+  "per_source": {
+    "gasmask": {
+      "train": 252,
+      "val": 54,
+      "test": 55,
+      "train_after_dup": 252
+    },
+    "ocp": {
+      "train": 246,
+      "val": 52,
+      "test": 54,
+      "train_after_dup": 738
+    },
+    "roboflow_ppe": {
+      "train": 215,
+      "val": 46,
+      "test": 47,
+      "train_after_dup": 215
+    },
+    "sh17": {
+      "train": 1500,
+      "val": 300,
+      "test": 300,
+      "train_after_dup": 1500
+    }
+  },
+  "per_class_boxes": {
+    "train": {
+      "Person": 4370,
+      "boots": 4415,
+      "gas mask": 572,
+      "gloves": 819,
+      "goggles": 1797,
+      "helmet": 2133,
+      "no_gloves": 630,
+      "no_helmet": 252,
+      "vest": 3122
+    },
+    "val": {
+      "Person": 710,
+      "boots": 717,
+      "gas mask": 110,
+      "gloves": 144,
+      "goggles": 332,
+      "helmet": 347,
+      "no_gloves": 133,
+      "no_helmet": 31,
+      "vest": 531
+    },
+    "test": {
+      "Person": 713,
+      "boots": 713,
+      "gas mask": 106,
+      "gloves": 120,
+      "goggles": 323,
+      "helmet": 283,
+      "no_gloves": 146,
+      "no_helmet": 81,
+      "vest": 496
+    }
+  },
+  "eval_sets": {
+    "fused_val": 452,
+    "ocp_test": 54,
+    "industrial_proxy": 355
+  }
+}

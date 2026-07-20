@@ -1,0 +1,140 @@
+{
+  "classes": [
+    "Person",
+    "helmet",
+    "vest",
+    "gloves",
+    "boots",
+    "goggles",
+    "no_helmet",
+    "no_gloves",
+    "no_goggle",
+    "gas mask"
+  ],
+  "maps": {
+    "roboflow_ppe": {
+      "gloves": "gloves",
+      "helmet": "helmet",
+      "no_gloves": "no_gloves",
+      "no_helmet": "no_helmet",
+      "no_shoes": "DROP",
+      "no_vest": "DROP",
+      "person": "Person",
+      "shoes": "boots",
+      "vest": "vest"
+    },
+    "sh17": {
+      "person": "Person",
+      "head": "DROP",
+      "face": "DROP",
+      "glasses": "goggles",
+      "face_mask_medical": "DROP",
+      "face_guard": "DROP",
+      "ear": "DROP",
+      "earmuffs": "DROP",
+      "hands": "DROP",
+      "gloves": "gloves",
+      "foot": "DROP",
+      "shoes": "boots",
+      "safety_vest": "vest",
+      "tools": "DROP",
+      "helmet": "helmet",
+      "medical_suit": "DROP",
+      "safety_suit": "DROP"
+    },
+    "gasmask": {
+      "gas_mask": "gas mask"
+    },
+    "ocp": {
+      "person": "Person",
+      "boots": "boots",
+      "gas_mask": "gas mask",
+      "gloves": "gloves",
+      "goggles": "goggles",
+      "helmet": "helmet",
+      "vest": "vest"
+    }
+  },
+  "reports": {
+    "roboflow_ppe": {
+      "source": "roboflow_ppe",
+      "images_before": 308,
+      "images_after": 308,
+      "boxes_before": 5781,
+      "boxes_after": 4276,
+      "boxes_dropped": 1505,
+      "dropped_by_class": {
+        "no-vest": 849,
+        "no-shoes": 656
+      },
+      "boxes_by_class": {
+        "Person": 1241,
+        "no_gloves": 909,
+        "helmet": 886,
+        "no_helmet": 364,
+        "vest": 288,
+        "gloves": 193,
+        "boots": 395
+      }
+    },
+    "sh17": {
+      "source": "sh17",
+      "images_before": 2100,
+      "images_after": 2100,
+      "boxes_before": 20144,
+      "boxes_after": 15188,
+      "boxes_dropped": 4956,
+      "dropped_by_class": {
+        "Head": 2017,
+        "Face-guard": 212,
+        "Medical-suit": 73,
+        "Foot": 292,
+        "Face": 90,
+        "Earmuffs": 1337,
+        "Hands": 488,
+        "Safety-suit": 197,
+        "Ear": 162,
+        "Face-mask-medical": 37,
+        "Tools": 51
+      },
+      "boxes_by_class": {
+        "vest": 3110,
+        "goggles": 2315,
+        "Person": 3693,
+        "boots": 4149,
+        "helmet": 1203,
+        "gloves": 718
+      }
+    },
+    "gasmask": {
+      "source": "gasmask",
+      "images_before": 361,
+      "images_after": 361,
+      "boxes_before": 569,
+      "boxes_after": 569,
+      "boxes_dropped": 0,
+      "dropped_by_class": {},
+      "boxes_by_class": {
+        "gas mask": 569
+      }
+    },
+    "ocp": {
+      "source": "ocp",
+      "images_before": 352,
+      "images_after": 352,
+      "boxes_before": 1707,
+      "boxes_after": 1707,
+      "boxes_dropped": 0,
+      "dropped_by_class": {},
+      "boxes_by_class": {
+        "helmet": 282,
+        "vest": 313,
+        "boots": 535,
+        "Person": 357,
+        "goggles": 57,
+        "gas mask": 93,
+        "gloves": 70
+      }
+    }
+  }
+}
