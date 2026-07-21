@@ -6,7 +6,7 @@
 
 The system is the three-stage pipeline of Fig.~\ref{fig:pipeline}: a pretrained YOLOv8 detector (stage 1) is fine-tuned on a composite, domain-adapted PPE dataset ending with self-annotated OCP imagery (stage 2); flagged violations are dispatched to safety personnel (stage 3).
 
-The design is shaped by one constraint: the pipeline must retrofit onto installed CCTV cameras, which rules out new imaging hardware and favors a small detector (Section~\ref{sec:methods-training}). Within this design, stage 2 carries the paper's scientific question, whether generic benchmark training transfers to an operating plant at all; the protocol of Section~\ref{sec:methods-comparison} answers it.
+The design is shaped by one constraint: the pipeline must retrofit onto installed IP cameras, which rules out new imaging hardware and favors a small detector (Section~\ref{sec:methods-training}). Within this design, stage 2 carries the paper's scientific question, whether generic benchmark training transfers to an operating plant at all; the protocol of Section~\ref{sec:methods-comparison} answers it.
 
 \begin{figure}[H]
 \centering
@@ -29,7 +29,7 @@ The design is shaped by one constraint: the pipeline must retrofit onto installe
   \node[stage] (s1) {%
     \textbf{(1) Detect}\\[1pt]
     YOLOv8n\\[-1pt]
-    {\scriptsize on CCTV frames}};
+    {\scriptsize on IP camera frames}};
   \node[stage, right=0.55cm of s1] (s2) {%
     \textbf{(2) Adapt}\\[1pt]
     Domain fine-tuning\\[-1pt]
@@ -103,7 +103,7 @@ The fourth dataset component is a self-annotated corpus from OCP site cameras th
 \subsection{Preprocessing}
 \label{sec:methods-preprocessing}
 
-All images are resized to $640\times640$ pixels. The augmentation policy targets the visual failure modes of industrial CCTV. HSV jitter perturbs hue, saturation, and value to simulate the colour and contrast shifts produced by dust haze and glare. Horizontal flipping doubles pose variety. Random erasing imitates partial occlusion by equipment and other workers. Mosaic augmentation composites four training images to vary object scale and context, and is disabled for the final training epochs so that late optimization sees realistically composed frames.
+All images are resized to $640\times640$ pixels. The augmentation policy targets the visual failure modes of industrial IP cameras. HSV jitter perturbs hue, saturation, and value to simulate the colour and contrast shifts produced by dust haze and glare. Horizontal flipping doubles pose variety. Random erasing imitates partial occlusion by equipment and other workers. Mosaic augmentation composites four training images to vary object scale and context, and is disabled for the final training epochs so that late optimization sees realistically composed frames.
 
 \subsection{Model Training}
 \label{sec:methods-training}
