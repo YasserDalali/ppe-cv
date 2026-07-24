@@ -4,13 +4,11 @@
 \subsection{System Overview}
 \label{sec:methods-overview}
 
-The system is the three-stage pipeline of Fig.~\ref{fig:pipeline}: a pretrained YOLOv8 detector (stage 1) is fine-tuned on a composite, domain-adapted PPE dataset ending with self-annotated OCP imagery (stage 2); flagged violations are dispatched to safety personnel (stage 3).
+Fig.~\ref{fig:pipeline}: four datasets are remapped/split (Section~\ref{sec:methods-dataset}); YOLOv8 is fine-tuned on the fused corpus (Section~\ref{sec:methods-training}); the best checkpoint forks into evaluation (Section~\ref{sec:methods-comparison}) and live deployment, which infers on the camera feed and dispatches alerts. One constraint shapes the design: retrofit onto installed IP cameras, ruling out new hardware and favoring a small detector.
 
-The design is shaped by one constraint: the pipeline must retrofit onto installed IP cameras, which rules out new imaging hardware and favors a small detector (Section~\ref{sec:methods-training}). Within this design, stage 2 carries the paper's scientific question, whether generic benchmark training transfers to an operating plant at all; the protocol of Section~\ref{sec:methods-comparison} answers it.
-
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\resizebox{\columnwidth}{!}{%
+\resizebox{0.85\columnwidth}{!}{%
 \begin{tikzpicture}[
   font=\footnotesize\sffamily,
   >=Latex,
@@ -19,105 +17,84 @@ The design is shaped by one constraint: the pipeline must retrofit onto installe
     rounded corners=1.5pt,
     align=center,
     inner sep=3pt,
-    minimum height=1.35cm,
-    minimum width=2.35cm,
     line width=0.6pt
   },
-  stage/.style={box, fill=gray!12},
-  arrow/.style={->, thick, shorten >=1pt, shorten <=1pt}
+  src/.style={box, fill=gray!12, minimum height=0.85cm, minimum width=3.1cm},
+  stage/.style={box, fill=gray!12, minimum height=1.5cm, minimum width=2.6cm},
+  ckptbox/.style={box, fill=gray!25, minimum height=1.5cm, minimum width=1.6cm},
+  branch/.style={box, fill=gray!12, minimum height=1.9cm, text width=4.7cm},
+  arrow/.style={->, thick, shorten >=1pt, shorten <=1pt},
+  note/.style={font=\scriptsize\sffamily, fill=white, inner sep=1pt}
 ]
-  \node[stage] (s1) {%
-    \textbf{(1) Detect}\\[1pt]
-    YOLOv8n\\[-1pt]
-    {\scriptsize on IP camera frames}};
-  \node[stage, right=0.55cm of s1] (s2) {%
-    \textbf{(2) Adapt}\\[1pt]
-    Domain fine-tuning\\[-1pt]
-    {\scriptsize fused PPE dataset}};
-  \node[stage, right=0.55cm of s2] (s3) {%
-    \textbf{(3) Alert}\\[1pt]
-    Dispatch to HSE\\[-1pt]
-    {\scriptsize existing infra}};
-  \draw[arrow] (s1) -- (s2);
-  \draw[arrow] (s2) -- (s3);
+  \node[src] (d1) {Roboflow PPE-Detection\\[-1pt]{\scriptsize public $\cdot$ helmets, vests}};
+  \node[src, below=0.25cm of d1] (d2) {SH17\\[-1pt]{\scriptsize public $\cdot$ 17 industrial classes}};
+  \node[src, below=0.25cm of d2] (d3) {Roboflow gas masks\\[-1pt]{\scriptsize public $\cdot$ 384 images}};
+  \node[src, below=0.25cm of d3] (d4) {OCP site cameras\\[-1pt]{\scriptsize self-annotated}};
+
+  \coordinate (mid) at ($(d2.east)!0.5!(d3.east)$);
+  \node[stage, right=1.7cm of mid] (split) {%
+    \textbf{Fuse + split}\\[1pt]
+    unified 10-class map\\[-1pt]
+    {\scriptsize 70/15/15 split,}\\[-2pt]
+    {\scriptsize OCP $\times$3 sampling}};
+  \node[stage, right=0.45cm of split] (train) {%
+    \textbf{YOLOv8n fine-tune}\\[1pt]
+    $640\times640$, batch 16\\[-1pt]
+    {\scriptsize $\leq$50 epochs,}\\[-2pt]
+    {\scriptsize patience 20}};
+  \node[ckptbox, right=0.45cm of train] (ckpt) {%
+    \textbf{best.pt}\\[-1pt]
+    {\scriptsize checkpoint}};
+
+  \draw[arrow] (d1.east) -- node[note, pos=0.45, above, sloped] {ID remap} ($(split.west)+(0,0.55)$);
+  \draw[arrow] (d2.east) -- node[note, pos=0.45, above, sloped] {ID remap, capped} ($(split.west)+(0,0.2)$);
+  \draw[arrow] (d3.east) -- node[note, pos=0.45, below, sloped] {ID remap} ($(split.west)+(0,-0.2)$);
+  \draw[arrow] (d4.east) -- node[note, pos=0.45, below, sloped] {sampling weight $\uparrow$} ($(split.west)+(0,-0.55)$);
+  \draw[arrow] (split) -- (train);
+  \draw[arrow] (train) -- (ckpt);
+
+  \coordinate (topmidR) at ($(train.south)!0.5!(ckpt.south)$);
+  \node[branch, below=2.1cm of topmidR] (eval) {%
+    \textbf{Evaluation}\\[1pt]
+    vs.\ generic baseline, OCP test + industrial proxy\\[-1pt]
+    {\scriptsize $\rightarrow$ P/R/mAP50, confusion matrix (Section~\ref{sec:methods-comparison})}};
+  \node[branch, right=0.4cm of eval] (deploy) {%
+    \textbf{Deployment}\\[1pt]
+    IP camera inference, 9.35\,ms/frame\\[-1pt]
+    {\scriptsize conf.-thresholded alert: camera ID, class, clip $\rightarrow$ safety personnel}};
+
+  \draw[arrow] (ckpt.south) -- ++(0,-0.5) coordinate (fork) -| (eval.north);
+  \draw[arrow] (fork) -| (deploy.north);
 \end{tikzpicture}%
 }
-\caption{The three-stage pipeline: a pretrained YOLOv8 base (1) is fine-tuned on the composite domain-adapted dataset (2); flagged violations are dispatched over existing infrastructure (3).}
+\caption{System architecture: four sources are remapped (explicit label-ID mapping; SH17 capped at 1,500 train / 300 val / 300 test) and fused under a unified ten-class map, with OCP given a higher ($\times$3) sampling weight since it is the deployment domain itself; YOLOv8n is fine-tuned on the result; the checkpoint feeds both the generic-vs-adapted evaluation harness and the live deployment path that dispatches alerts to safety personnel.}
 \label{fig:pipeline}
 \end{figure}
 
 \subsection{Dataset Construction}
 \label{sec:methods-dataset}
 
-No single public corpus covers the class mix of a chemical-processing site, so the training set fuses three public sources and one site-specific corpus under a single class map (Fig.~\ref{fig:datasets}). Roboflow PPE-Detection \cite{roboflowppe} contributes a helmet- and vest-centred detection benchmark typical of construction imagery. SH17 \cite{ahmad2024sh17} contributes 17 classes of PPE items and human body parts across varied industrial scenes. The Roboflow gas masks corpus \cite{roboflowgasmasks} (384 images) supplies instances of the gas-mask class that construction-skewed benchmarks barely cover.
-All sources are merged into a unified ten-class map: Person, helmet, vest, gloves, boots, goggles, no\_helmet, no\_gloves, no\_goggle, and gas mask. The explicit negative classes (no\_helmet, no\_gloves, no\_goggle) let the detector localize the \emph{absence} of an item directly instead of inferring it from a missing detection.
+No single public corpus covers a chemical site's class mix, so training fuses three public sources plus one site-specific corpus under one class map (Fig.~\ref{fig:pipeline}): Roboflow PPE-Detection \cite{roboflowppe} (helmet/vest construction imagery), SH17 \cite{ahmad2024sh17} (17 classes, industrial scenes), and Roboflow gas masks \cite{roboflowgasmasks} (384 images). Unified ten-class map: Person, helmet, vest, gloves, boots, goggles, no\_helmet, no\_gloves, no\_goggle, gas mask. Explicit negative classes let the detector localize \emph{absence} directly rather than infer it from a missing detection.
 
-\begin{figure}[H]
-\centering
-\resizebox{\columnwidth}{!}{%
-\begin{tikzpicture}[
-  font=\footnotesize\sffamily,
-  >=Latex,
-  box/.style={
-    draw,
-    rounded corners=1.5pt,
-    align=center,
-    inner sep=3pt,
-    minimum height=0.9cm,
-    minimum width=3.4cm,
-    line width=0.6pt
-  },
-  src/.style={box, fill=gray!12},
-  proc/.style={box, fill=gray!25, minimum height=1.35cm, minimum width=2.7cm},
-  arrow/.style={->, thick, shorten >=1pt, shorten <=1pt},
-  note/.style={font=\scriptsize\sffamily, fill=white, inner sep=1pt}
-]
-  \node[src] (d1) {Roboflow PPE-Detection\\[-1pt]{\scriptsize public $\cdot$ helmets, vests}};
-  \node[src, below=0.3cm of d1] (d2) {SH17\\[-1pt]{\scriptsize public $\cdot$ 17 industrial classes}};
-  \node[src, below=0.3cm of d2] (d3) {Roboflow gas masks\\[-1pt]{\scriptsize public $\cdot$ 384 images}};
-  \node[src, below=0.3cm of d3] (d4) {OCP site cameras\\[-1pt]{\scriptsize self-annotated}};
+Fusing annotations is not file concatenation: each source's class IDs index its own ontology (SH17's 0--16 is not the fused map), so naive merging reinterprets in-range IDs as the wrong class and discards out-of-range images as corrupt. A preliminary naive merge rejected roughly 43\% of training images this way. We remap explicitly first: each SH17 class maps to its fused ID or is excluded (body parts), recorded, labels rewritten before training.
 
-  \coordinate (mid) at ($(d2.east)!0.5!(d3.east)$);
-  \node[proc, right=1.9cm of mid] (fuse) {\textbf{Fusion}\\[1pt]explicit class-ID remap\\[-1pt]{\scriptsize unified 10-class map}};
-  \node[proc, right=0.8cm of fuse] (model) {\textbf{YOLOv8n}\\[1pt]fine-tuning\\[-1pt]{\scriptsize $640\times640$ $\rightarrow$ \texttt{best.pt}}};
+SH17 outnumbers the other three combined by an order of magnitude (8{,}000 vs.\ roughly 1{,}000: 308 Roboflow PPE-Detection, 361 gas-mask, 352 OCP), and both remap and per-epoch cost scale with pool size. Since well-represented classes saturate with a few hundred examples, we cap SH17 at 1{,}500 training images, 300 each for validation/test, uniform random with a fixed seed, bounding compute on a single Colab GPU at no material cost to common-class accuracy, at the price of thinning scarce SH17 classes and val/test metrics on a subsample (Section~\ref{sec:discussion}).
 
-  \draw[arrow] (d1.east) -- node[note, pos=0.45, above, sloped] {ID remap} ($(fuse.west)+(0,0.45)$);
-  \draw[arrow] (d2.east) -- node[note, pos=0.45, above, sloped] {ID remap, capped} ($(fuse.west)+(0,0.15)$);
-  \draw[arrow] (d3.east) -- node[note, pos=0.45, below, sloped] {ID remap} ($(fuse.west)+(0,-0.15)$);
-  \draw[arrow] (d4.east) -- node[note, pos=0.45, below, sloped] {sampling weight $\uparrow$} ($(fuse.west)+(0,-0.45)$);
-  \draw[arrow] (fuse) -- (model);
-\end{tikzpicture}%
-}
-\caption{Dataset composition (stage 2 of Fig.~\ref{fig:pipeline}): four sources merged under a unified ten-class map with explicit label-ID remapping; SH17 is capped across all three splits (1,500 train, 300 validation, 300 test) to bound both fine-tuning and per-epoch validation cost, and only the OCP corpus receives a higher (\texttt{\(\times\)}3) sampling weight, since it is the deployment domain itself rather than a generic stand-in for one class. A held-out OCP portion forms the chemical-plant evaluation set (Section~\ref{sec:methods-comparison}).}
-\label{fig:datasets}
-\end{figure}
-
-Fusing annotation sets is not file concatenation, and the remapping step deserves emphasis because its failure mode is silent. Each source's integer class IDs index that source's own ontology: SH17's IDs 0--16 reference its 17-class list, not the fused map. Under naive merging, in-range IDs are reinterpreted as the wrong class, and every image with an ID at or above the fused class count is silently discarded as corrupt; in a preliminary naive merge, this alone rejected roughly 43\% of training images. Our pipeline therefore remaps explicitly before merging: each SH17 class is mapped to its fused ID or deliberately excluded (body-part classes), the mapping is recorded, and all label files are rewritten before any image enters training.
-
-SH17 also outnumbers the other three sources combined by roughly an order of magnitude (8{,}000 images against roughly 1{,}000: 308 from Roboflow PPE-Detection, 361 gas-mask images, 352 OCP images), and both remap cost and per-epoch training cost scale directly with pool size; because validation runs every epoch under the training framework's default policy, an uncapped validation split imposes this cost as well, not only an uncapped training split. Because well-represented classes (\emph{Person}, \emph{gloves}, \emph{vest}, \emph{no\_helmet}) saturate detector performance with a few hundred examples, we cap SH17's contribution to all three splits, drawn uniformly at random with a fixed seed: 1{,}500 training images, and 300 each for validation and test. This bounds fine-tuning and per-epoch validation cost on commodity compute (a single Colab GPU) without a material cost to accuracy on common classes, at the price of proportionally thinning classes already scarce within SH17 itself, and, for validation and test, of computing reported metrics on a fixed random subsample rather than the full corpus. Both trade-offs are returned to in Section~\ref{sec:discussion}.
-
-The gas-mask class receives targeted treatment: respiratory protection is among the most safety-relevant items at chemical sites yet under-represented in construction-skewed public data, so the class is populated by the Roboflow gas masks corpus \cite{roboflowgasmasks}. Unlike the OCP corpus, gas-mask training images are not oversampled: the source is a generic public stand-in for a single class rather than the deployment domain itself, so duplicating it would add fine-tuning cost without the domain-relevance payoff that justifies OCP's higher sampling weight. Diversity within the class is instead addressed through the augmentation policy of Section~\ref{sec:methods-preprocessing} alone.
-
-The fourth dataset component is a self-annotated corpus from OCP site cameras that captures conditions public data lacks: phosphate dust, harsh lighting transitions, and site-specific uniforms and equipment. This corpus has been collected and annotated against the fused class map using Roboflow's annotation tooling, and is included in the training mix. OCP samples receive a higher sampling weight than public samples, so each batch is biased toward deployment-realistic imagery while the public data preserves visual diversity. A held-out portion of the OCP corpus, disjoint from all training data, forms the chemical-plant evaluation set of the central comparison (Section~\ref{sec:methods-comparison}); publication of individual site frames remains subject to imagery clearance. The fused dataset is partitioned 70\%/15\%/15\% into training, validation, and test splits; the split is decided independently within each of the four source datasets (not stratified by class) before remapping and duplication, and a fixed seed makes it identical across runs.
+Gas masks come from the Roboflow gas masks corpus \cite{roboflowgasmasks}, safety-critical yet under-represented in construction data; unlike OCP, not oversampled (a generic stand-in, not the deployment domain). The fourth component, self-annotated OCP site-camera imagery, captures phosphate dust, lighting transitions, and site uniforms, annotated against the fused map and given higher sampling weight; a held-out, disjoint portion forms the chemical-plant evaluation set (Section~\ref{sec:methods-comparison}), subject to imagery clearance. The fused dataset splits 70\%/15\%/15\% independently per source (unstratified), fixed seed.
 
 \subsection{Preprocessing}
 \label{sec:methods-preprocessing}
 
-All images are resized to $640\times640$ pixels. The augmentation policy targets the visual failure modes of industrial IP cameras. HSV jitter perturbs hue, saturation, and value to simulate the colour and contrast shifts produced by dust haze and glare. Horizontal flipping doubles pose variety. Random erasing imitates partial occlusion by equipment and other workers. Mosaic augmentation composites four training images to vary object scale and context, and is disabled for the final training epochs so that late optimization sees realistically composed frames.
+Images are resized to $640\times640$. Augmentation targets IP-camera failure modes: HSV jitter (dust haze/glare), horizontal flipping, random erasing (occlusion), and mosaic (scale/context), disabled in the final epochs for realistic late-training frames.
 
 \subsection{Model Training}
 \label{sec:methods-training}
 
-The detector is YOLOv8n \cite{ultralytics2023}, the nano variant of YOLOv8: 3.0M parameters, 8.1 GFLOPs at $640\times640$, and 6.3 MB of weights. The small footprint is deliberate: retrofit deployment means inference must run on commodity hardware alongside existing video infrastructure. Training runs on Google Colab for up to 50 epochs at $640\times640$ with batch size 16, stopping early if validation mAP does not improve over 20 consecutive epochs (patience 20); the reported run trained for the full 50 epochs without triggering the patience-based early stop. Optimizer selection is left to the framework's automatic policy, which configures an SGD-family optimizer with initial learning rate 0.01, momentum 0.937, and weight decay $5\times10^{-4}$; the first three epochs apply learning-rate warmup. The best checkpoint by validation fitness is exported as \texttt{best.pt} and used in all subsequent stages. Detection accuracy is reported in Section~\ref{sec:results}.
+The detector is YOLOv8n \cite{ultralytics2023}: 3.0M parameters, 8.1 GFLOPs at $640\times640$, 6.3 MB, small by design since inference must run on commodity hardware alongside existing video infrastructure. Training: Google Colab, up to 50 epochs, $640\times640$, batch 16, patience 20 (the reported run trained the full 50 epochs); auto-configured SGD, LR 0.01, momentum 0.937, weight decay $5\times10^{-4}$, 3-epoch warmup. Best checkpoint by validation fitness exported as \texttt{best.pt}, used throughout.
 
 \subsection{Generic-vs-Adapted Comparison Protocol}
 \label{sec:methods-comparison}
 
-The central experiment asks whether generic benchmark training transfers to an operating chemical plant. The \emph{generic baseline} is the detector trained solely on the Roboflow PPE-Detection corpus \cite{roboflowppe}: 308 images over nine construction-oriented classes, with 58.1\% precision, 64.4\% recall, and 59.1\% mAP@50 on its own validation split. This is what a practitioner who deploys the public benchmark model obtains off the shelf. The \emph{industrial-adapted model} is the fused-dataset detector of Section~\ref{sec:methods-training}.
+The central experiment: does generic benchmark training transfer to an operating chemical plant? The \emph{generic baseline} trains solely on Roboflow PPE-Detection \cite{roboflowppe} (308 images, 9 classes; 58.1\% precision, 64.4\% recall, 59.1\% mAP@50 on its own validation split), the off-the-shelf public model. The \emph{industrial-adapted model} is the fused-dataset detector of Section~\ref{sec:methods-training}.
 
-Both models are evaluated on two test sets neither saw during training: the held-out OCP site imagery of Section~\ref{sec:methods-dataset} (the headline comparison, since it is exactly the deployment domain) and an \emph{industrial proxy} set of held-out SH17 industrial scenes and gas-mask images \cite{roboflowgasmasks}, publishable without imagery clearance. Because the class inventories differ, metrics are computed over the classes common to both maps (person, helmet, vest, gloves, and their negative states) at identical resolution and confidence thresholds. The baseline also differs in training-set size, a confound discussed in Section~\ref{sec:discussion}; the comparison measures what the public benchmark model actually delivers on plant imagery, which is the deployment-relevant question.
-
-\subsection{Alert and Deployment Architecture}
-\label{sec:methods-alerts}
-
-When the detector flags a violation above the operating confidence threshold, the dispatch stage pushes an alert (camera ID, violation class, detection confidence, and a timestamped clip) over the sites' existing network. Detector inference runs on commodity compute, so the pipeline requires no new capital hardware, and coverage is continuous: unlike a human operator, it has no attention span to exhaust.
+Both are evaluated on two held-out sets: OCP site imagery (Section~\ref{sec:methods-dataset}, the deployment domain) and an \emph{industrial proxy} of SH17 and gas-mask images \cite{roboflowgasmasks}, publishable without clearance. Metrics use classes common to both maps (person, helmet, vest, gloves, negative states) at identical resolution/thresholds. The baseline also trains on far less data, a confound discussed in Section~\ref{sec:discussion}; the comparison measures what the public model actually delivers on plant imagery.
