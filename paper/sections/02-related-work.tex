@@ -1,34 +1,32 @@
 \section{Related Work}\label{sec:related}
 
-Automated PPE detection has consolidated around the YOLO family of one-stage detectors, whose inference speed makes them the default choice for video-rate safety applications \cite{ultralytics2023}. Recent YOLOv8-based studies benchmark helmet and vest detection across public object-detection datasets \cite{ppeyolo2024}, and edge-deployed variants extend the approach to preventing falls from height on construction sites, which confirms that real-time PPE monitoring is feasible on modest hardware \cite{edgeyolo2024}. Community resources such as the Roboflow Universe PPE-Detection corpus \cite{roboflowppe} supply most of the training data behind this line of work. The shared limitation is scope: class inventories revolve around hard hats and high-visibility vests; the respiratory and eye protection that dominates chemical-processing compliance (gas masks, goggles) is absent; nothing adapts the detector to a specific site's dust, lighting, and PPE-like uniforms; and, to our knowledge, none of the resulting detectors has been evaluated on imagery from a real, operating chemical plant. That evaluation vacuum is the gap this paper's central experiment addresses.
+PPE detection has consolidated around YOLO \cite{ultralytics2023,ppeyolo2024,edgeyolo2024}, mostly trained on Roboflow PPE-Detection \cite{roboflowppe}. The shared limitation (Table~\ref{tab:relwork}): class inventories center on hard hats and vests, respiratory/eye protection is absent, nothing adapts to site dust/lighting/uniforms, and none has been evaluated on a real operating chemical plant.
 
-The SH17 dataset \cite{ahmad2024sh17} broadens the label space to seventeen classes spanning PPE items and human body parts in manufacturing scenes, currently the widest public inventory for industrial PPE detection. Its breadth, however, is deliberately generic: the imagery reflects general manufacturing rather than chemical-industry environments, and the dataset carries no mechanism for the domain shift a detector encounters when moved onto a particular plant's cameras. SH17 is a strong ingredient for a site-adapted model, not a substitute for one.
+SH17 \cite{ahmad2024sh17} widens the label space to seventeen classes (the broadest public industrial inventory) but stays generic-manufacturing, with no domain-shift mechanism for a specific plant. It is an ingredient for a site-adapted model, not a substitute.
 
-A separate literature explains why automated detection is needed at all. Classical sustained-attention research established that vigilance decays within the first half hour of a continuous monitoring task \cite{parasuraman1984}, and that the decrement persists even when observers are explicitly instructed and motivated \cite{sawin1995}. CCTV-specific evidence points the same way. Velastin et al. proposed motion-based video analysis for underground stations on the premise that human operators cannot reliably watch large banks of monitors \cite{velastin2006}, and a Sandia National Laboratories assessment of continuous monitoring tasks describes attention lapses that spread across operators as sessions extend \cite{sandia2014}. The most direct evidence for industrial CCTV comes from Donald, Donald, and Thatcher, who studied trained surveillance operators in diamond-processing plants: roughly half of targeted risk behaviours detected, with a high rate of false alarms \cite{donald2015}. The false-alarm half of that result matters as much as the miss rate: a detector that merely replaces the human eye shifts the vigilance burden downstream to whoever reviews its output.
+A separate literature motivates detection at all: vigilance decays within the first half hour regardless of instruction \cite{parasuraman1984}, and diamond-plant operators caught only half of targeted risk behaviors with high false alarms \cite{donald2015}, which shift the vigilance burden downstream to whoever reviews the output.
 
-Each thread stops short of our setting: detection research offers fast models but construction-centric classes and no site adaptation; SH17 widens the label space without reaching chemical-industry conditions; and the vigilance literature diagnoses manual monitoring but offers no detection-side remedy. No prior work, to our knowledge, reports a controlled comparison of a generic benchmark-trained detector against an industrially adapted one on operating-plant imagery; that comparison is the experiment at the center of this paper. Table~\ref{tab:relwork} summarizes the closest prior efforts.
+No prior work reports a controlled comparison of generic vs.\ industrially adapted detection on operating-plant imagery (Table~\ref{tab:relwork}); that comparison is this paper's center.
 
-\begin{table}[t]
+\begin{table}[htbp]
 \caption{Summary of Related Work Across the Two Threads}
 \label{tab:relwork}
 \centering
 \footnotesize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{p{1.9cm}p{1.6cm}p{1.9cm}p{2.5cm}}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{p{2.6cm}p{2.2cm}p{2.6cm}p{3.6cm}}
 \toprule
 \textbf{Study/Source} & \textbf{Method} & \textbf{Focus} & \textbf{Key Finding} \\
 \midrule
-Roboflow PPE-Detection \cite{roboflowppe} & Public YOLO-format dataset & Helmet/vest detection & Widely reused baseline; construction-centric class set \\
+DatasetPPE \cite{roboflowppe} & Public YOLO-format dataset & Helmet/vest detection & Widely reused baseline; construction-centric class set \\
 \addlinespace
-SH17 \cite{ahmad2024sh17} & Object-detection dataset & 17 PPE and body-part classes in manufacturing & Broadest public industrial PPE label space; generic conditions \\
+Ahmad et al. (2024) \cite{ahmad2024sh17} & Object-detection dataset & 17 PPE and body-part classes in manufacturing & Broadest public industrial PPE label space; generic conditions \\
 \addlinespace
-PPE-YOLOv8 comparative study \cite{ppeyolo2024} & YOLOv8 benchmarking & PPE detection on public benchmark datasets & YOLOv8 performs competitively for PPE detection \\
+Barlybayev et al. (2024) \cite{ppeyolo2024} & YOLOv8 benchmarking & PPE detection on public benchmark datasets & YOLOv8 performs competitively for PPE detection \\
 \addlinespace
-Edge-YOLOv8 worker safety \cite{edgeyolo2024} & Improved YOLOv8 on edge devices & Fall-from-height PPE, construction sites & Real-time PPE detection feasible on edge hardware \\
+Kim et al. (2025) \cite{edgeyolo2024} & Improved YOLOv8 on edge devices & Fall-from-height PPE, construction sites & Real-time PPE detection feasible on edge hardware \\
 \addlinespace
-Donald et al. (2015) \cite{donald2015} & Field study of CCTV operators & Operator performance, diamond-processing plants & Reported low detection of target behaviours with high false-alarm rates \\
-\addlinespace
-Velastin et al. (2006) \cite{velastin2006} & Motion-based video analysis & Automated surveillance support & Automation proposed to offset the limits of manual multi-camera monitoring \\
+Donald et al. (2015) \cite{donald2015} & Field study of CCTV camera operators & Operator performance, diamond-processing plants & Reported low detection of target behaviours with high false-alarm rates \\
 \bottomrule
 \end{tabular}
 \end{table}

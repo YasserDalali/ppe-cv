@@ -1,7 +1,6 @@
-\documentclass[conference]{IEEEtran}
-\IEEEoverridecommandlockouts
-
-\usepackage{cite}
+\documentclass[runningheads]{llncs}
+%
+\usepackage[T1]{fontenc}
 \usepackage{amsmath,amssymb,amsfonts}
 \usepackage{graphicx}
 \usepackage{float}
@@ -13,39 +12,40 @@
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.17}
 \usepackage[hidelinks]{hyperref}
+\renewcommand\UrlFont{\color{blue}\rmfamily}
+\urlstyle{rm}
+\raggedbottom
+\setlength{\topmargin}{-24pt}
+\setlength{\headsep}{10pt}
+\addtolength{\textheight}{58pt}
+\setlength{\oddsidemargin}{20pt}
+\setlength{\evensidemargin}{20pt}
+\addtolength{\textwidth}{86pt}
+\setlength{\footskip}{20pt}
 
 \begin{document}
-
-\title{Domain-Adapted PPE Compliance Detection for an Operating Chemical Plant CCTV Network}
-
-\author{
-\IEEEauthorblockN{Yasser Dalali}
-\IEEEauthorblockA{\textit{LAMIGEP Research Laboratory, EMSI}\\
-Marrakech, Morocco\\
-yasser.dalali@emsi-edu.ma}
-\and
-\IEEEauthorblockN{Amine Zeguendry}
-\IEEEauthorblockA{\textit{Cadi Ayyad University}\\
-\textit{LAMIGEP Research Laboratory, EMSI}\\
-Marrakech, Morocco\\
-a.zeguendry@emsi.ma}
-\and
-\IEEEauthorblockN{Mohammed Taha Eladli}
-\IEEEauthorblockA{\textit{LAMIGEP Research Laboratory, EMSI}\\
-Marrakech, Morocco\\
-mohamedtaha.eladli@emsi-edu.ma}
-}
-
+%
+\title{A Domain-Adapted Computer Vision Model for PPE Compliance Detection in Chemical Plant IP Camera Networks}
+%
+\titlerunning{A Computer Vision Model for PPE Compliance Detection at a Chemical Plant}
+%
+\author{Yasser Dalali \and
+Amine Zeguendry \and
+Mohammed Taha Eladli}
+%
+\authorrunning{Y. Dalali et al.}
+%
+\institute{LAMIGEP Research Laboratory, EMSI, Marrakech, Morocco\\
+\email{yasser.dalali@emsi-edu.ma, a.zeguendry@emsi.ma, mohamedtaha.eladli@emsi-edu.ma}}
+%
 \maketitle
-
+%
 \begin{abstract}
 \input{sections/00-abstract}
+
+\keywords{PPE compliance \and YOLOv8 \and domain adaptation \and chemical industry \and HSE \and vigilance decrement \and IP camera retrofitting}
 \end{abstract}
-
-\begin{IEEEkeywords}
-PPE compliance, YOLOv8, domain adaptation, chemical industry, vigilance decrement, CCTV retrofitting
-\end{IEEEkeywords}
-
+%
 \input{sections/01-introduction}
 \input{sections/02-related-work}
 \input{sections/03-methods}
@@ -53,7 +53,7 @@ PPE compliance, YOLOv8, domain adaptation, chemical industry, vigilance decremen
 \input{sections/05-discussion}
 \input{sections/06-conclusion}
 
-\bibliographystyle{IEEEtran}
+\bibliographystyle{splncs04}
 \bibliography{references}
 
 \end{document}

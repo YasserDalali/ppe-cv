@@ -1,0 +1,9 @@
+streamlit
+ultralytics
+onnxruntime
+lap
+opencv-python-headless
+numpy
+pandas
+psutil
+requests
