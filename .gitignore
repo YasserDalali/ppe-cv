@@ -7,3 +7,4 @@ PPE-OCP/.venv/
 PPE-OCP/**/*.mp4
 PPE-OCP/**/*.MOV
 handoff-2026-07-20/
+.venv/
