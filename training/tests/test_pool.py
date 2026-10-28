@@ -213,3 +213,19 @@ def test_assemble_feeds_resized_pngs_to_train_and_val_only(pool):
     # eval sets keep the original files
     orig = {p.name for p in (pool_dir / "sources" / "ocp" / "images").iterdir()}
     assert {p.name.split("__", 1)[1] for p in (run.eval_sets["ocp"] / "images").iterdir()} <= orig
+
+
+def test_resized_handles_roboflow_names_near_the_filename_limit(tmp_path):
+    pytest.importorskip("cv2")
+    from conftest import write_png
+    from ppe.pool import _resized
+
+    pool_dir = tmp_path / "pool"
+    suffix = "_jpg.rf.51862ab8920aa3bcac7ea58f32c0c849"
+    long_stem = ("person-equipment-fire-gas-mask-" * 9)[:248 - len(suffix)] + suffix
+    assert len(long_stem + ".jpg") < 255 < len(long_stem + ".partial.png")  # the real failure
+    img = pool_dir / "sources" / "gasmask" / "images" / f"{long_stem}.jpg"
+    write_png(img)
+    [(out, _, _)] = _resized(pool_dir, [(img, None, "s")], 64)
+    assert out.is_file() and len(out.name.encode()) < 255
+    assert _resized(pool_dir, [(img, None, "s")], 64)[0][0] == out  # reused, not rebuilt

@@ -288,7 +288,10 @@ def _resized(pool_dir: Path, entries: list, imgsz: int) -> list:
     from concurrent.futures import ThreadPoolExecutor
 
     def target(img: Path) -> Path:
-        return Path(pool_dir) / f"resized{imgsz}" / img.parent.parent.name / f"{img.stem}.png"
+        stem = img.stem  # gas-mask stems reach ~240 chars; keep "<stem>.partial.png" < 255 bytes
+        if len(stem.encode()) > 200:
+            stem = f"{stem[:180]}_{hashlib.sha1(img.stem.encode()).hexdigest()[:10]}"
+        return Path(pool_dir) / f"resized{imgsz}" / img.parent.parent.name / f"{stem}.png"
 
     todo = {img: target(img) for img, _, _ in entries if not target(img).is_file()}
     if todo:
