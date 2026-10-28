@@ -129,3 +129,19 @@ def test_map50_fast_matches_summarize():
 def test_ap_edge_cases():
     assert np.isnan(ap_from(np.zeros(0), np.zeros(0, dtype=bool), 0))
     assert ap_from(np.zeros(0), np.zeros(0, dtype=bool), 3) == 0.0
+
+
+def test_confusion_matrix_counts_confusions_misses_and_false_alarms(tmp_path):
+    from pathlib import Path
+    from ppe.scoring import confusion_matrix
+
+    gt = boxes([(0, 0, 10, 10, "helmet", 1), (20, 20, 30, 30, "vest", 1), (50, 50, 60, 60, "vest", 1)])
+    pred = {"xyxy": [[0, 0, 10, 10], [20, 20, 30, 30], [80, 80, 90, 90], [50, 50, 60, 60]],
+            "cls": ["helmet", "helmet", "vest", "vest"], "conf": [0.9, 0.8, 0.7, 0.1]}
+    cm = confusion_matrix([(Path("x.jpg"), gt)], {"images": {"x.jpg": pred}},
+                          ["helmet", "vest"], conf=0.25, iou_thr=0.5)
+    # rows true (helmet, vest, background), cols predicted (helmet, vest, background)
+    assert cm["labels"] == ["helmet", "vest", "background"]
+    assert cm["matrix"] == [[1, 0, 0],   # helmet found
+                            [1, 0, 1],   # one vest called helmet, one vest missed (pred below 0.25)
+                            [0, 1, 0]]   # one vest detection on nothing

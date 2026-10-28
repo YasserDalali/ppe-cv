@@ -258,6 +258,45 @@ def recording_bootstrap(models: dict, classes: list[str], n_boot: int, seed: int
     return out
 
 
+def confusion_matrix(items: list, cache: dict, classes: list[str], conf: float,
+                     iou_thr: float) -> dict:
+    """Class confusion at an operating threshold. Rows = true class, columns =
+    predicted class; the extra last row/column is background (last row:
+    detections matching no object = false alarms; last column: objects with
+    no detection = misses). Matching is one-to-one by highest IoU regardless
+    of class, so a wrong-class detection counts once, as a confusion."""
+    names = [normalize_name(c) for c in classes]
+    idx = {c: i for i, c in enumerate(names)}
+    bg = len(names)
+    m = np.zeros((bg + 1, bg + 1), dtype=int)
+    for img_path, gt in items:
+        gt_f = _filter(gt, names)
+        pred = _filter(boxes_from_cache(cache["images"][img_path.name]), names)
+        keep = pred.confidence >= conf
+        p_xyxy = pred.xyxy[keep]
+        p_cls = [idx[normalize_name(c)] for c, k in zip(pred.class_names, keep) if k]
+        g_cls = [idx[normalize_name(c)] for c in gt_f.class_names]
+        matched_g, matched_p = set(), set()
+        if g_cls and p_cls:
+            ious = iou_matrix(gt_f.xyxy, p_xyxy)
+            pairs = sorted(((ious[g, p], g, p) for g, p in zip(*np.nonzero(ious >= iou_thr))),
+                           reverse=True)
+            for _, g, p in pairs:
+                if g in matched_g or p in matched_p:
+                    continue
+                matched_g.add(g)
+                matched_p.add(p)
+                m[g_cls[g], p_cls[p]] += 1
+        for g, c in enumerate(g_cls):
+            if g not in matched_g:
+                m[c, bg] += 1
+        for p, c in enumerate(p_cls):
+            if p not in matched_p:
+                m[bg, c] += 1
+    return {"labels": names + ["background"], "matrix": m.tolist(), "conf": conf,
+            "iou": iou_thr, "rows": "true class", "cols": "predicted class"}
+
+
 def score_eval_set(cache: dict, eval_dir: Path, scopes: dict, op_conf: float) -> dict:
     items = load_eval_set(eval_dir)
     return {name: summarize(match_cache(items, cache, scope), scope, op_conf)

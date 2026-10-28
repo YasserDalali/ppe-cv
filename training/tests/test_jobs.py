@@ -93,9 +93,12 @@ def test_collect_pools_ocp_and_orders_models(ran):
     assert common["bootstrap"]["pairs"]["A-S"]["diff"] > 0
     assert "B" not in pooled["scopes"]["all"]["models"]
     for name in ("ablation.tex", "ocp_pooled.tex", "per_class.tex", "protocol.tex",
-                 "counts.tex", "ocp_folds.tex", "settings.tex", "summary.md"):
+                 "counts.tex", "ocp_folds.tex", "settings.tex", "summary.md",
+                 "confusion_matrix.png"):
         assert (final / name).is_file(), name
     assert "SGD" in (final / "settings.tex").read_text()
+    cm = pooled["confusion_A"]["matrix"]  # A predicts the ground truth: all on the diagonal
+    assert sum(cm[i][i] for i in range(len(cm) - 1)) == sum(map(sum, cm)) > 0
 
 
 def test_A_folds_never_score_a_recording_they_trained_on(ran):

@@ -29,7 +29,7 @@ from ppe.evaluate import load_eval_set
 from ppe.jobs import _write_json, protocol, results_root
 from ppe.pool import EVAL_SETS, ocp_all_eval_set
 from ppe.report import check_no_placeholders
-from ppe.scoring import match_cache, recording_bootstrap, summarize
+from ppe.scoring import confusion_matrix, match_cache, recording_bootstrap, summarize
 
 SET_LABELS = {
     "ocp": "OCP plant (recordings unseen in training)",
@@ -130,6 +130,8 @@ def pooled_ocp(cfg: Config, pool_dir: Path, scores: dict) -> dict:
         matches = {e: [match_cache(items, c, scope) for c in runs_by_exp[e]] for e in exps}
         summaries = {e: [summarize(m, scope, cfg.op_conf) for m in matches[e]] for e in exps}
         classes = summaries["A"][0]["classes"]
+        if scope_name == "all":
+            out["confusion_A"] = confusion_matrix(items, merged, classes, cfg.op_conf, cfg.match_iou)
         boot = recording_bootstrap(matches, classes, cfg.n_boot, seed=0,
                                    pairs=[p for p in PAIRS[scope_name] if set(p) <= set(exps)])
         out["scopes"][scope_name] = {
@@ -174,6 +176,37 @@ def _pr_figure(pooled: dict, out_dir: Path) -> None:
     fig.tight_layout()
     for ext in ("png", "pdf"):
         fig.savefig(out_dir / f"pr_curves.{ext}", dpi=200)
+    plt.close(fig)
+
+
+def _confusion_figure(cm: dict, out_dir: Path) -> None:
+    """Rows = true class, columns = predicted class, last row/column =
+    background. Colour = share of each row; numbers = counts."""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import numpy as np
+    except ImportError:
+        print("[collect] matplotlib missing — skipping confusion_matrix")
+        return
+    m = np.array(cm["matrix"], dtype=float)
+    share = m / np.maximum(m.sum(axis=1, keepdims=True), 1)
+    labels = [l.replace("_", " ") for l in cm["labels"]]
+    fig, ax = plt.subplots(figsize=(4.2, 3.8))
+    ax.imshow(share, cmap="Blues", vmin=0, vmax=1)
+    for i in range(m.shape[0]):
+        for j in range(m.shape[1]):
+            if m[i, j]:
+                ax.text(j, i, int(m[i, j]), ha="center", va="center", fontsize=6,
+                        color="white" if share[i, j] > 0.6 else "black")
+    ax.set_xticks(range(len(labels)), labels, rotation=45, ha="right", fontsize=7)
+    ax.set_yticks(range(len(labels)), labels, fontsize=7)
+    ax.set_xlabel("Predicted class")
+    ax.set_ylabel("True class")
+    fig.tight_layout()
+    for ext in ("png", "pdf"):
+        fig.savefig(out_dir / f"confusion_matrix.{ext}", dpi=200)
     plt.close(fig)
 
 
@@ -277,6 +310,8 @@ def collect(cfg: Config, pool_dir: Path) -> Path:
             "P/R at confidence 0.25.", "tab:per-class",
             ["Class", "GT boxes", "AP@50", "P", "R"], rows)
         _pr_figure(pooled, out)
+        if "confusion_A" in pooled:
+            _confusion_figure(pooled["confusion_A"], out)
 
     # protocol: one row per reported number
     rows = []
