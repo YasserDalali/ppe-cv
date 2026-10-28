@@ -95,6 +95,10 @@ class Config:
     # last.pt is written every epoch anyway (enough for resume); -1 skips the
     # extra epochN.pt files, ~300 MB per run x 17 revision runs on Drive.
     save_period: int = -1
+    # Colab T4 runtimes have 2 CPUs: re-decoding large JPEGs every epoch is the
+    # bottleneck. "disk" stores each image resized to imgsz as .npy after the
+    # first epoch — same pixels, deterministic (unlike "ram"), much faster.
+    cache: str | bool = "disk"
     run_name: str = "model_a"
     # --- evaluation ---
     eval_conf: float = 0.25

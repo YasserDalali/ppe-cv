@@ -60,6 +60,7 @@ def train_run(cfg: Config, run_id: str, data_yaml: Path, seed: int) -> Path:
             erasing=cfg.erasing,
             close_mosaic=cfg.close_mosaic,
             save_period=cfg.save_period,
+            cache=cfg.cache,
             project=str(cfg.runs_dir),
             name=run_id,
             exist_ok=True,
