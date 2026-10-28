@@ -291,7 +291,7 @@ def collect(cfg: Config, pool_dir: Path) -> Path:
                              ", ".join(v["classes"]).replace("_", "\\_"),
                              cfg.conf_floor, cfg.op_conf, cfg.match_iou])
     tex["protocol.tex"] = _tex(
-        "Evaluation protocol for every reported number: checkpoint best.pt, NMS IoU "
+        f"Evaluation protocol for every reported number: {protocol(cfg)['checkpoint']}, NMS IoU "
         f"{cfg.nms_iou}, input {cfg.imgsz}px.", "tab:protocol",
         ["Table", "Model", "Runs", "Eval set", "Images", "Classes", "AP conf floor",
          "P/R conf", "Match IoU"], rows, "lllllp{4.5cm}ccc")

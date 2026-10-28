@@ -28,7 +28,9 @@ def results_root(cfg: Config) -> Path:
 
 def protocol(cfg: Config) -> dict:
     return {
-        "checkpoint": "best.pt (Ultralytics fitness on the shared public val split)",
+        "checkpoint": ("final-epoch weights (best.pt after the only validation, at the last "
+                       "epoch; no checkpoint selection)" if not cfg.val else
+                       "best.pt (Ultralytics fitness on the shared public val split)"),
         "conf_floor": cfg.conf_floor, "op_conf": cfg.op_conf,
         "match_iou": cfg.match_iou, "nms_iou": cfg.nms_iou, "imgsz": cfg.imgsz,
         "ap": "COCO 101-point interpolation; classes without ground truth in a set excluded",

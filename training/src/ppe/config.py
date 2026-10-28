@@ -99,6 +99,11 @@ class Config:
     # bottleneck. "disk" stores each image resized to imgsz as .npy after the
     # first epoch — same pixels, deterministic (unlike "ram"), much faster.
     cache: str | bool = "disk"
+    # Validate only after the final epoch: every model then uses its final
+    # (epoch-50) weights, so no data influences checkpoint choice, and the
+    # per-epoch val pass (~75 s of NMS on an untrained model, vs ~5 s of
+    # training for B) no longer dominates the T4 budget. patience is unused.
+    val: bool = False
     run_name: str = "model_a"
     # --- evaluation ---
     eval_conf: float = 0.25
