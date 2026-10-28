@@ -56,7 +56,7 @@ class StubPredictor:
 
 def test_shared_class_list_case_insensitive_ordered():
     ours = ["Person", "helmet", "vest", "gloves", "boots", "goggles",
-            "no_helmet", "no_gloves", "no_goggle", "gas mask"]
+            "no_helmet", "no_gloves", "gas mask"]
     theirs = ["gloves", "helmet", "no-gloves", "no-helmet", "no-shoes",
               "no-vest", "person", "shoes", "vest"]
     assert shared_class_list(ours, theirs) == \
@@ -420,12 +420,12 @@ def test_model_a_val_extras(tmp_path, monkeypatch):
     data_yaml = dataset / "data.yaml"
     data_yaml.write_text(yaml.safe_dump({
         "path": str(dataset), "train": "train/images", "val": "val/images",
-        "test": "test/images", "nc": 10, "names": CANONICAL_CLASSES}))
+        "test": "test/images", "nc": len(CANONICAL_CLASSES), "names": CANONICAL_CLASSES}))
     monkeypatch.setattr("ppe.evaluate._load_yolo_model",
                         lambda w: FakeValModel(tmp_path / "valrun"))
     cfg = Config(drive_root=tmp_path / "dr", work_root=tmp_path / "wk")
     out = model_a_val(cfg, tmp_path / "best.pt", data_yaml)
-    assert len(out["per_class"]) == 11  # 10 classes + ALL
+    assert len(out["per_class"]) == len(CANONICAL_CLASSES) + 1  # classes + ALL
     by_class = {r["class"]: r for r in out["per_class"]}
     assert by_class["Person"]["P"] == 80.0 and by_class["Person"]["images"] == 2
     assert by_class["helmet"]["images"] == 1

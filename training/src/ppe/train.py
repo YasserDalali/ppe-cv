@@ -1,6 +1,6 @@
 """Step 4 — Model A training with disconnect-proof auto-resume.
 
-Checkpoints go straight to Drive (project=cfg.runs_dir, save_period=1), the
+Checkpoints go straight to Drive (project=cfg.runs_dir; last.pt every epoch), the
 dataset is read from local disk (data_yaml under work_root). Recovery from a
 Colab disconnect is "Run all" again: a finished run is skipped, an unfinished
 one resumes from last.pt. Maximum loss: the current epoch.
@@ -31,10 +31,16 @@ def decide_train_action(run_dir: Path) -> str:
 
 def train_model_a(cfg: Config, data_yaml: Path) -> Path:
     """Train (or resume, or skip) Model A; returns the path to best.pt."""
-    run_dir = cfg.runs_dir / cfg.run_name
+    return train_run(cfg, cfg.run_name, data_yaml, cfg.seed)
+
+
+def train_run(cfg: Config, run_id: str, data_yaml: Path, seed: int) -> Path:
+    """Train (or resume, or skip) one run under runs/<run_id>; returns best.pt.
+    Every run uses the same recipe from cfg — only data and seed differ."""
+    run_dir = cfg.runs_dir / run_id
     best = run_dir / "weights" / "best.pt"
     action = decide_train_action(run_dir)
-    print(f"[train] action={action} run_dir={run_dir}")
+    print(f"[train] {run_id}: action={action} run_dir={run_dir}")
     if action == "skip":
         return best
 
@@ -50,12 +56,12 @@ def train_model_a(cfg: Config, data_yaml: Path) -> Path:
             imgsz=cfg.imgsz,
             batch=cfg.batch,
             patience=cfg.patience,
-            seed=cfg.seed,
+            seed=seed,
             erasing=cfg.erasing,
             close_mosaic=cfg.close_mosaic,
             save_period=cfg.save_period,
             project=str(cfg.runs_dir),
-            name=cfg.run_name,
+            name=run_id,
             exist_ok=True,
         )
     if not best.is_file():

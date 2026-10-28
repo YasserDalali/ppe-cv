@@ -27,7 +27,7 @@ from ppe.remap import normalize_name
 # candidate shared classes per the requirements: person, helmet, vest,
 # gloves + the no_* variants; intersected at runtime with both models' names
 SHARED_CANDIDATES = ["person", "helmet", "vest", "gloves",
-                     "no_helmet", "no_gloves", "no_goggle"]
+                     "no_helmet", "no_gloves"]
 
 
 @dataclass

@@ -64,11 +64,11 @@ def test_check_no_placeholders_catches_blanks():
 
 def test_low_image_classes():
     summary = {"per_class_boxes": {"train": {"Person": 5000, "helmet": 300,
-                                             "no_goggle": 12, "gas mask": 150}}}
+                                             "gas mask": 150}}}
     low = low_image_classes(summary, threshold=200)
     # every canonical class not reaching 200 train boxes, in canonical order
     assert low == ["vest", "gloves", "boots", "goggles", "no_helmet",
-                   "no_gloves", "no_goggle", "gas mask"]
+                   "no_gloves", "gas mask"]
 
 
 def test_readme_answers_all_five_questions(tmp_path):

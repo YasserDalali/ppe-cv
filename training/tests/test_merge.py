@@ -12,6 +12,7 @@ from ppe.merge import compute_raw_split, ensure_prepared, merge_and_split, zip_d
 from ppe.remap import remap_all
 
 SECRETS = {"ROBOFLOW_API_KEY": "k", "KAGGLE_USERNAME": "u", "KAGGLE_KEY": "kk"}
+GAS_MASK = CANONICAL_CLASSES.index("gas mask")
 
 
 def make_remapped_source(root: Path, name: str, n_images: int, cls_id: int = 0) -> Path:
@@ -161,7 +162,7 @@ def test_duplication_train_only(tmp_path):
     root = tmp_path / "remapped"
     remapped = {
         "ocp": make_remapped_source(root, "ocp", 10),
-        "gasmask": make_remapped_source(root, "gasmask", 10, cls_id=9),
+        "gasmask": make_remapped_source(root, "gasmask", 10, cls_id=GAS_MASK),
     }
     cfg = Config(drive_root=tmp_path / "drive", work_root=tmp_path / "work",
                 gasmask_dup_factor=3)
@@ -182,7 +183,7 @@ def test_duplication_train_only(tmp_path):
 
 def test_gasmask_not_duplicated_by_default(tmp_path):
     root = tmp_path / "remapped"
-    remapped = {"gasmask": make_remapped_source(root, "gasmask", 10, cls_id=9)}
+    remapped = {"gasmask": make_remapped_source(root, "gasmask", 10, cls_id=GAS_MASK)}
     res = merge_and_split(cfg_for(tmp_path), remapped, tmp_path / "out")
     train = stems(res.dataset_dir / "train")
     assert len(train) == 7  # int(10*0.7), no dups
@@ -204,7 +205,7 @@ def test_long_roboflow_filenames_are_truncated_safely(tmp_path):
         assert len(stem) == 244
         write_png(src / "images" / f"{stem}.jpg")
         (src / "labels").mkdir(parents=True, exist_ok=True)
-        (src / "labels" / f"{stem}.txt").write_text("9 0.5 0.5 0.2 0.2\n")
+        (src / "labels" / f"{stem}.txt").write_text(f"{GAS_MASK} 0.5 0.5 0.2 0.2\n")
 
     # gasmask_dup_factor=3 override: exercises the __dupN naming path
     # together with the truncation logic, even though gasmask isn't
@@ -244,7 +245,7 @@ def test_data_yaml_and_summary(tmp_path, fixture_sources):
     remapped = {n: remapped_root / n for n in fixture_sources}
     res = merge_and_split(cfg_for(tmp_path), remapped, tmp_path / "out")
     data = yaml.safe_load((res.dataset_dir / "data.yaml").read_text())
-    assert data["names"] == CANONICAL_CLASSES and data["nc"] == 10
+    assert data["names"] == CANONICAL_CLASSES and data["nc"] == len(CANONICAL_CLASSES)
     assert data["path"] == str(res.dataset_dir)
     summary = json.loads((tmp_path / "out" / "split_summary.json").read_text())
     assert summary == res.summary

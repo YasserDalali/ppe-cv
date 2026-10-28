@@ -6,7 +6,7 @@ from ppe.config import CANONICAL_CLASSES, Config, SecretsError, load_secrets, pa
 def test_canonical_classes_exact_order():
     assert CANONICAL_CLASSES == [
         "Person", "helmet", "vest", "gloves", "boots", "goggles",
-        "no_helmet", "no_gloves", "no_goggle", "gas mask",
+        "no_helmet", "no_gloves", "gas mask",
     ]
 
 

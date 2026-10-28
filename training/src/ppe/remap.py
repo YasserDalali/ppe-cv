@@ -69,8 +69,9 @@ GASMASK_NAME_MAP = {
     "0": DROP,
 }
 
-# yasser-dalali/ocp-snzjw v2: Person, boots, gas mask, gloves, goggles, helmet,
-# vest (no negative classes — those ids simply get zero boxes from OCP)
+# OCP (207 originals; same 7 names as yasser-dalali/ocp-snzjw v2): Person,
+# boots, gas mask, gloves, goggles, helmet, vest. No negative classes are
+# annotated on OCP; the no_* keys only guard older exports.
 OCP_NAME_MAP = {
     "person": "Person",
     "helmet": "helmet",
@@ -81,7 +82,7 @@ OCP_NAME_MAP = {
     "gas_mask": "gas mask",
     "no_helmet": "no_helmet",
     "no_gloves": "no_gloves",
-    "no_goggle": "no_goggle",
+    "no_goggle": DROP,  # class removed from the canonical list (zero instances)
 }
 
 NAME_MAPS = {

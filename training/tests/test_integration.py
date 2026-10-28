@@ -105,7 +105,7 @@ def test_full_pipeline_synthetic(fixture_sources, tmp_path, monkeypatch):
     monkeypatch.setattr("ppe.evaluate._load_yolo_model",
                         lambda w: FakeValModel(tmp_path / "valrun"))
     extras = model_a_val(cfg, best, local / "data.yaml")
-    assert len(extras["per_class"]) == 11
+    assert len(extras["per_class"]) == len(CANONICAL_CLASSES) + 1
 
     # Report + handoff
     training = {"epochs": cfg.epochs, "ultralytics_version": "8.4.95",
