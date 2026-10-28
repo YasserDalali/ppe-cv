@@ -148,7 +148,70 @@ def pooled_ocp(cfg: Config, pool_dir: Path, scores: dict) -> dict:
                               for c in summaries[e][0]["per_class"]},
             } for e in exps},
         }
+    if "B_s0" in caches:
+        out["examples"] = pick_examples(items, merged, caches["B_s0"], scopes["all"], cfg)
     return out
+
+
+def pick_examples(items: list, cache_a: dict, cache_b: dict, classes: list, cfg: Config,
+                  n: int = 2) -> list:
+    """Frames where A (its out-of-fold model) and B seed 0 differ most in
+    correct detections at the operating point, from different recordings,
+    gas-mask frames first on ties. Examples, not evidence."""
+    from ppe.pool import recording_id
+
+    ma = {m.name: m for m in match_cache(items, cache_a, classes)}
+    mb = {m.name: m for m in match_cache(items, cache_b, classes)}
+
+    def tp(m) -> int:
+        return int(m.tp[m.conf >= cfg.op_conf, 0].sum())
+
+    ranked = sorted(ma, key=lambda k: (-(tp(ma[k]) - tp(mb[k])),
+                                       -ma[k].gt.get("gas_mask", 0), k))
+    out, seen = [], set()
+    for name in ranked:
+        rec = recording_id(name)
+        if rec in seen:
+            continue
+        seen.add(rec)
+        out.append({"frame": name, "recording": rec, "tp_A": tp(ma[name]), "tp_B": tp(mb[name]),
+                    "objects": sum(ma[name].gt.values())})
+        if len(out) == n:
+            break
+    return out
+
+
+def _example_figures(cfg: Config, examples: list, cache_a: dict, cache_b: dict,
+                     out_dir: Path) -> None:
+    """One image per example: A (left) and B (right) on the same frame,
+    boxes at confidence >= op_conf."""
+    from PIL import Image, ImageDraw, ImageFont, ImageOps
+
+    try:
+        font = ImageFont.load_default(size=30)
+    except TypeError:  # Pillow < 10.1
+        font = ImageFont.load_default()
+
+    def panel(path: Path, entry: dict, color: tuple, title: str) -> Image.Image:
+        im = ImageOps.exif_transpose(Image.open(path)).convert("RGB")
+        d = ImageDraw.Draw(im)
+        for (x1, y1, x2, y2), c, sc in zip(entry["xyxy"], entry["cls"], entry["conf"]):
+            if sc >= cfg.op_conf:
+                d.rectangle([x1, y1, x2, y2], outline=color, width=5)
+                d.text((x1 + 4, max(0, y1 - 34)), f"{c} {sc:.2f}", fill=color, font=font)
+        d.text((14, 10), title, fill=color, font=font)
+        return im
+
+    img_dir = cfg.work_root / "ocp_all" / "images"
+    for i, ex in enumerate(examples, 1):
+        path = img_dir / ex["frame"]
+        left = panel(path, cache_a["images"][ex["frame"]], (0, 200, 0), "A (ours, video unseen)")
+        right = panel(path, cache_b["images"][ex["frame"]], (220, 0, 0), "B (construction only)")
+        both = Image.new("RGB", (left.width + right.width, left.height), "white")
+        both.paste(left, (0, 0))
+        both.paste(right, (left.width, 0))
+        both.thumbnail((2400, 2400))
+        both.save(out_dir / f"ocp_example_{i}.jpg", quality=90)
 
 
 def _pr_figure(pooled: dict, out_dir: Path) -> None:
@@ -346,6 +409,13 @@ def collect(cfg: Config, pool_dir: Path) -> Path:
             "P/R at confidence 0.25.", "tab:per-class",
             ["Class", "GT boxes", "AP@50", "P", "R"], rows)
         _pr_figure(pooled, out)
+        if pooled.get("examples"):
+            root = results_root(cfg)
+            cache_a = {"images": {}}
+            for rid in pooled["a_folds"]:
+                cache_a["images"].update(json.loads((root / rid / "preds_ocp.json").read_text())["images"])
+            cache_b = json.loads((root / "B_s0" / "preds_ocp.json").read_text())
+            _example_figures(cfg, pooled["examples"], cache_a, cache_b, out)
         if "confusion_A" in pooled:
             _confusion_figure(pooled["confusion_A"], out)
 
