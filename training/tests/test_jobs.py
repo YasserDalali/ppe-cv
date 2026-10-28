@@ -70,6 +70,7 @@ def test_every_run_is_scored_once(ran):
     assert a0["sets"]["ocp"]["all"]["map50"] == pytest.approx(1.0)
     assert a0["protocol"]["conf_floor"] == 0.001 and a0["protocol"]["op_conf"] == 0.25
     assert (root / "latency.json").is_file()
+    assert not any((ran.work_root / "runs").glob("*")), "local run copies must be removed"
 
 
 def test_rerun_skips_finished_runs(ran, monkeypatch):

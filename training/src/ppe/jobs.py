@@ -156,4 +156,6 @@ def run_job(cfg: Config, job: str, secrets: dict | None = None) -> None:
         run_one(cfg, run_id, pool)
         if run_id == "A_f0":
             latency(cfg, pool, run_id)
+        # each local run copy is ~7 GB with the .npy cache; scores are on Drive
+        shutil.rmtree(cfg.work_root / "runs" / run_id, ignore_errors=True)
     print(f"[job] {job} done: {JOBS[job]}")
