@@ -94,9 +94,11 @@ def test_collect_pools_ocp_and_orders_models(ran):
     assert "B" not in pooled["scopes"]["all"]["models"]
     for name in ("ablation.tex", "ocp_pooled.tex", "per_class.tex", "protocol.tex",
                  "counts.tex", "ocp_folds.tex", "settings.tex", "summary.md",
-                 "confusion_matrix.png"):
+                 "confusion_matrix.png", "ablation_bars.tex"):
         assert (final / name).is_file(), name
     assert "SGD" in (final / "settings.tex").read_text()
+    bars = (final / "ablation_bars.tex").read_text()
+    assert bars.count("\\addplot") == 4 and "(Plant,100.0)" in bars
     cm = pooled["confusion_A"]["matrix"]  # A predicts the ground truth: all on the diagonal
     assert sum(cm[i][i] for i in range(len(cm) - 1)) == sum(map(sum, cm)) > 0
 
