@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import shutil
 import statistics
@@ -256,6 +257,47 @@ def _entries(pool_dir: Path, pairs: list[tuple[str, str]]) -> list[tuple[Path, P
              _safe_stem(s, Path(n).stem)) for s, n in pairs]
 
 
+def resize_like_ultralytics(src: Path, dst: Path, imgsz: int) -> Path:
+    """Write ``src`` exactly as Ultralytics' BaseDataset.load_image() hands it
+    to the model (longest side -> imgsz, cv2.INTER_LINEAR, same rounding), as
+    lossless PNG. Loading it back gives r == 1, so training sees bit-identical
+    pixels without decoding the full-size original every epoch — the .npy disk
+    cache stores originals at full size (~36 MB per SH17 photo)."""
+    import cv2
+    from ultralytics.utils.patches import imread
+
+    im = imread(str(src))
+    if im is None:
+        raise PoolError(f"cannot read image {src}")
+    h0, w0 = im.shape[:2]
+    r = imgsz / max(h0, w0)
+    if r != 1:
+        w, h = min(math.ceil(w0 * r), imgsz), min(math.ceil(h0 * r), imgsz)
+        im = cv2.resize(im, (w, h), interpolation=cv2.INTER_LINEAR)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dst.with_name(dst.stem + ".partial.png")
+    if not cv2.imwrite(str(tmp), im):
+        raise PoolError(f"cannot write {tmp}")
+    tmp.replace(dst)
+    return dst
+
+
+def _resized(pool_dir: Path, entries: list, imgsz: int) -> list:
+    """Same (img, label, stem) entries with img swapped for its resized PNG,
+    made once per pool image under pool/resized<imgsz>/ and reused by later runs."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def target(img: Path) -> Path:
+        return Path(pool_dir) / f"resized{imgsz}" / img.parent.parent.name / f"{img.stem}.png"
+
+    todo = {img: target(img) for img, _, _ in entries if not target(img).is_file()}
+    if todo:
+        with ThreadPoolExecutor(max_workers=4) as ex:  # cv2 releases the GIL
+            list(tqdm(ex.map(lambda kv: resize_like_ultralytics(kv[0], kv[1], imgsz), todo.items()),
+                      total=len(todo), desc=f"[assemble] resizing to {imgsz}", unit="img"))
+    return [(target(img), label, stem) for img, label, stem in entries]
+
+
 def check_and_clean(train: list[tuple[str, str]], others: dict[str, list[tuple[str, str]]],
                     hashes: dict[str, str]) -> tuple[dict, dict]:
     """Raise on any OCP recording or OCP image shared by train and another
@@ -330,14 +372,18 @@ def assemble_run(cfg: Config, run_id: str, pool_dir: Path | None = None) -> RunD
         shutil.rmtree(out)
     dataset = out / "dataset"
     train_dir = dataset / "train"
-    for img, label, stem in tqdm(_entries(pool_dir, plan["train"]),
-                                 desc=f"[assemble] {run_id} train", unit="img"):
+    train_e = _entries(pool_dir, plan["train"])
+    ocp_e = _entries(pool_dir, plan["ocp_train"])
+    val_e = _entries(pool_dir, cleaned["val"])
+    if cfg.train_resize:  # eval sets keep the originals
+        train_e, ocp_e, val_e = (_resized(pool_dir, e, cfg.imgsz) for e in (train_e, ocp_e, val_e))
+    for img, label, stem in tqdm(train_e, desc=f"[assemble] {run_id} train", unit="img"):
         _copy_pair(img, label, train_dir, stem)
-    for img, label, stem in _entries(pool_dir, plan["ocp_train"]):
+    for img, label, stem in ocp_e:
         _copy_pair(img, label, train_dir, stem)
         for k in range(1, cfg.ocp_dup_factor):  # x3 weight: after the split, train only
             _copy_pair(img, label, train_dir, f"{stem}__dup{k}")
-    for img, label, stem in _entries(pool_dir, cleaned["val"]):
+    for img, label, stem in val_e:
         _copy_pair(img, label, dataset / "val", stem)
     data_yaml = dataset / "data.yaml"
     data_yaml.write_text(yaml.safe_dump({

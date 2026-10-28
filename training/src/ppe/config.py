@@ -104,6 +104,10 @@ class Config:
     # per-epoch val pass (~75 s of NMS on an untrained model, vs ~5 s of
     # training for B) no longer dominates the T4 budget. patience is unused.
     val: bool = False
+    # Feed train/val images already resized exactly as Ultralytics would (longest
+    # side = imgsz, INTER_LINEAR, lossless PNG): bit-identical model input, but
+    # no full-size decode per epoch. Eval sets keep the original images.
+    train_resize: bool = True
     run_name: str = "model_a"
     # --- evaluation ---
     eval_conf: float = 0.25

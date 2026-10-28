@@ -180,3 +180,36 @@ def test_ensure_pool_builds_once_then_restores_without_secrets(tmp_path, revisio
     import shutil
     shutil.rmtree(pool_dir)
     assert (ensure_pool(cfg, None) / "counts.json").is_file()
+
+
+def test_resize_like_ultralytics_gives_identical_model_input(tmp_path):
+    cv2 = pytest.importorskip("cv2")
+    np = pytest.importorskip("numpy")
+    from ultralytics.utils.patches import imread
+    from ppe.pool import resize_like_ultralytics
+
+    rng = np.random.default_rng(0)
+    for (h, w) in [(700, 1000), (300, 200), (640, 640), (1081, 1919)]:
+        src = tmp_path / f"im_{h}x{w}.jpg"
+        cv2.imwrite(str(src), rng.integers(0, 255, (h, w, 3), dtype=np.uint8))
+        im = imread(str(src))
+        r = 640 / max(h, w)
+        if r != 1:  # what BaseDataset.load_image does to the original
+            im = cv2.resize(im, (min(int(np.ceil(w * r)), 640), min(int(np.ceil(h * r)), 640)),
+                            interpolation=cv2.INTER_LINEAR)
+        out = resize_like_ultralytics(src, tmp_path / f"out_{h}x{w}.png", 640)
+        back = imread(str(out))
+        assert max(back.shape[:2]) == 640  # so load_image leaves it alone (r == 1)
+        assert np.array_equal(back, im)
+
+
+def test_assemble_feeds_resized_pngs_to_train_and_val_only(pool):
+    cfg, pool_dir = pool
+    run = assemble_run(cfg, "A_f0", pool_dir)
+    for d in (run.dataset_dir / "train", run.dataset_dir / "val"):
+        assert {p.suffix for p in (d / "images").iterdir()} == {".png"}
+        assert len(list((d / "images").iterdir())) == len(list((d / "labels").iterdir()))
+    assert (pool_dir / "resized640").is_dir()
+    # eval sets keep the original files
+    orig = {p.name for p in (pool_dir / "sources" / "ocp" / "images").iterdir()}
+    assert {p.name.split("__", 1)[1] for p in (run.eval_sets["ocp"] / "images").iterdir()} <= orig
