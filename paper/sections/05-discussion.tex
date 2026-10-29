@@ -1,6 +1,6 @@
 \section{Discussion}\label{sec:discussion}
 
-\textbf{What the comparison shows.} At equal training-set size, plant imagery raises mAP@50 on unseen recordings by 42.3 points, while more public data adds 2.9. The gain comes from site PPE that public data do not show, such as the plant's work jackets. Adding public industrial imagery even drops plant accuracy below the construction-only benchmark, so more data from another setting is no substitute for site data. Over the construction-only benchmark the total gain is 28.6 points. Three controls make this number attributable: test recordings never seen in training, a benchmark trained and scored with the same recipe, and training sets of equal size.
+\textbf{What the comparison shows.} At equal training-set size, plant imagery raises mAP@50 on unseen recordings by 42.3 points, while more public data adds 2.9. The gain comes from site PPE that public data do not show, such as the plant's work jackets. Over the construction-only benchmark the total gain is 28.6 points. Three controls make this number attributable: test recordings never seen in training, a benchmark trained and scored with the same recipe, and training sets of equal size.
 
 \textbf{From detections to a compliance decision.} The application turns detections into a decision per person (Fig.~\ref{fig:zones}). We did not evaluate this step, since plant frames carry no compliance labels. A person box $P=(x_1,y_1,x_2,y_2)$ of width $w$ and height $h$ is split into three equal bands, computed from the detected box itself, so a partly visible person still gets bands scaled to what is in view. A PPE detection $d$ with centre $(c_x,c_y)$ is assigned to the tightest person box with $x_1-0.15\,w \le c_x \le x_2+0.15\,w$ and $y_1 \le c_y \le y_2$, written $a(d)$, and falls in band
 \begin{equation}
@@ -38,8 +38,8 @@ If $h/w<1.2$, the box is too squat to be a whole body and is most likely cropped
     \node at (1.2,-0.4) {(b) cropped, $h/w < 1.2$};
   \end{scope}
 \end{tikzpicture}
-\caption{Band rule of the application (designed, not evaluated). Each person box is split into three equal bands; an item counts as worn only in its expected band. A squat, cropped box is not checked by position.}
+\caption{Band rule of the application (designed, not evaluated): an item counts as worn only in its expected band; a squat, cropped box is not checked by position.}
 \label{fig:zones}
 \end{figure}
 
-\textbf{Limitations.} The plant data cover one unit on one day (12 of the 14 recordings within 13 minutes), and the only people in view are the authors, so the range of worker appearance, seasons and plant areas is narrow. Test recordings show the same people as training recordings, and A may partly have learned their clothing; the gain on new staff may be smaller. SH17 is subsampled at random rather than by class, which thins its rarest classes. Within our compute budget we tested only YOLOv8n at 640 pixels, where goggles, gloves and gas masks are too small to detect reliably, so the system cannot yet check them.
+\textbf{Limitations.} The plant data cover one unit on one day (12 of the 14 recordings within 13 minutes), and the only people in view are the authors, so the range of worker appearance, seasons and plant areas is narrow. Test recordings show the same people as training recordings, and A may partly have learned their clothing; the gain on new staff may be smaller. Within our compute budget we tested only YOLOv8n at 640 pixels, where goggles, gloves and gas masks are too small to detect reliably, so the system cannot yet check them.
