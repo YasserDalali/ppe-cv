@@ -216,7 +216,7 @@ def _example_figures(cfg: Config, examples: list, cache_a: dict, cache_b: dict,
 
 # Fig. 4 panels are drawn at their printed width (inches) so text keeps its
 # point size in the paper instead of shrinking when LaTeX scales the PDF.
-PANEL_WIDTH_IN = 1.8
+PANEL_WIDTH_IN = 1.7
 PANEL_RC = {"font.size": 6.5, "axes.labelsize": 6.5, "xtick.labelsize": 6, "ytick.labelsize": 6,
             "legend.fontsize": 5.5, "axes.linewidth": 0.6, "lines.linewidth": 1.0}
 
