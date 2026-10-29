@@ -75,27 +75,27 @@ We remap four sources into one class list and split them, plant frames by record
 \label{tab:data}
 \centering
 \scriptsize
-\setlength{\tabcolsep}{2.6pt}
-\begin{tabular}{lccccccccccc}
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{lcccccccccc}
 \toprule
-& Images & & \multicolumn{9}{c}{Boxes} \\
-\cmidrule(lr){4-12}
-Set & train/val/test & Rec. & Pers. & helm. & vest & glov. & boots & gogg. & no\_h. & no\_g. & gas m. \\
+& Images & & \multicolumn{7}{c}{Boxes} \\
+\cmidrule(lr){4-10}
+Set & train/val/test & Rec. & Pers. & helm. & vest & glov. & boots & gogg. & gas m. \\
 \midrule
-Roboflow PPE-Det. & 215/46/47 & & 837 & 632 & 205 & 139 & 284 & -- & 230 & 596 & -- \\
-SH17 & 1500/300/300 & & 2{,}493 & 839 & 2{,}133 & 482 & 2{,}970 & 1{,}643 & -- & -- & -- \\
-SH17 extra (S only) & 600 & & 1{,}024 & 299 & 885 & 217 & 1{,}149 & 642 & -- & -- & -- \\
-Gas masks & 255/52/54 & & -- & -- & -- & -- & -- & -- & -- & -- & 406 \\
-Public train, total & 1{,}970 & & 3{,}330 & 1{,}471 & 2{,}338 & 621 & 3{,}254 & 1{,}643 & 230 & 596 & 406 \\
-Public val, total & 398 & & 689 & 295 & 479 & 118 & 650 & 332 & 63 & 160 & 81 \\
-Public test, total & 401 & & 670 & 250 & 440 & 152 & 596 & 291 & 71 & 153 & 82 \\
+Roboflow PPE-Det. & 215/46/47 & & 837 & 632 & 205 & 139 & 284 & -- & -- \\
+SH17 & 1500/300/300 & & 2{,}493 & 839 & 2{,}133 & 482 & 2{,}970 & 1{,}643 & -- \\
+SH17 extra (S only) & 600 & & 1{,}024 & 299 & 885 & 217 & 1{,}149 & 642 & -- \\
+Gas masks & 255/52/54 & & -- & -- & -- & -- & -- & -- & 406 \\
+Public train, total & 1{,}970 & & 3{,}330 & 1{,}471 & 2{,}338 & 621 & 3{,}254 & 1{,}643 & 406 \\
+Public val, total & 398 & & 689 & 295 & 479 & 118 & 650 & 332 & 81 \\
+Public test, total & 401 & & 670 & 250 & 440 & 152 & 596 & 291 & 82 \\
 \midrule
-OCP fold 0 & 42 frames & 2 & 42 & 42 & 42 & 6  & 53 & 16 & -- & -- & 3  \\
-OCP fold 1 & 43 frames & 3 & 44 & 34 & 32 & 22 & 64 & 0  & -- & -- & 15 \\
-OCP fold 2 & 40 frames & 3 & 40 & 36 & 35 & 0  & 67 & 9  & -- & -- & 13 \\
-OCP fold 3 & 42 frames & 3 & 42 & 24 & 42 & 3  & 63 & 4  & -- & -- & 7  \\
-OCP fold 4 & 40 frames & 3 & 44 & 33 & 34 & 0  & 72 & 3  & -- & -- & 21 \\
-OCP, all   & 207 frames & 14 & 212 & 169 & 185 & 31 & 319 & 32 & -- & -- & 59 \\
+OCP fold 0 & 42 frames & 2 & 42 & 42 & 42 & 6  & 53 & 16 & 3 \\
+OCP fold 1 & 43 frames & 3 & 44 & 34 & 32 & 22 & 64 & 0  & 15 \\
+OCP fold 2 & 40 frames & 3 & 40 & 36 & 35 & 0  & 67 & 9  & 13 \\
+OCP fold 3 & 42 frames & 3 & 42 & 24 & 42 & 3  & 63 & 4  & 7 \\
+OCP fold 4 & 40 frames & 3 & 44 & 33 & 34 & 0  & 72 & 3  & 21 \\
+OCP, all   & 207 frames & 14 & 212 & 169 & 185 & 31 & 319 & 32 & 59 \\
 \bottomrule
 \end{tabular}
 \end{table}
