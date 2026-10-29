@@ -167,5 +167,6 @@ def test_A1280_uses_its_overrides_and_is_compared_on_the_same_frames(ran):
     assert res["folds"] == [0, 1] and set(res["models"]) == {"640", "1280"}
     assert res["n_images"] == sum(OCP_RECORDINGS[r] for r in res["recordings"])
     assert (root / "final" / "resolution_confusion.pdf").is_file()
+    assert (root / "final" / "confusion_matrix_1280.pdf").is_file()
     pool_dirs = {p.name for p in ran.local_pool_dir.iterdir()}
     assert {"resized1280", f"resized{ran.imgsz}"} <= pool_dirs, pool_dirs

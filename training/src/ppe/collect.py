@@ -461,6 +461,13 @@ def _resolution_figure(res: dict, out_dir: Path) -> None:
             fig.savefig(out_dir / f"resolution_confusion.{ext}", dpi=300,
                         bbox_inches="tight", pad_inches=0.02)
         plt.close(fig)
+        # single 1280 panel, same size and style as Fig. 4b, for the paper
+        fig, ax = plt.subplots(figsize=(PANEL_WIDTH_IN, PANEL_WIDTH_IN))
+        _draw_confusion(ax, res["models"]["1280"]["confusion"])
+        fig.tight_layout(pad=0.2)
+        for ext in ("png", "pdf"):
+            fig.savefig(out_dir / f"confusion_matrix_1280.{ext}", dpi=300)
+        plt.close(fig)
 
 
 def _settings(cfg: Config, scores: dict) -> list:
