@@ -1,100 +1,140 @@
 \section{Materials and Methods}
 \label{sec:methods}
 
-\subsection{System Overview}
-\label{sec:methods-overview}
+We remap four sources into one class list and split them, plant frames by recording (Fig.~\ref{fig:pipeline}). Four training sets, each changing one factor, are trained with one recipe and scored by the same evaluation code.
 
-Fig.~\ref{fig:pipeline}: four datasets are remapped/split (Section~\ref{sec:methods-dataset}); YOLOv8 is fine-tuned on the fused corpus (Section~\ref{sec:methods-training}); the best checkpoint forks into evaluation (Section~\ref{sec:methods-comparison}) and live deployment, which infers on the camera feed and dispatches alerts. One constraint shapes the design: retrofit onto installed IP cameras, ruling out new hardware and favoring a small detector.
 
-\begin{figure}[htbp]
+\textbf{Plant data.} We recorded the plant data on 16 July 2026 in the phosphoric-acid treatment unit of the Maroc Chimie complex (OCP Group, Safi), with a smartphone mounted at fixed positions in several locations and at several viewing angles, under varying light. The phone stands in for fixed surveillance cameras. There are 14 recordings: 12 videos taken between 16:35 and 16:48, and two short clips. We sampled frames across each recording and removed near-duplicates, which gave 207 frames at $1920\times1080$, annotated in Roboflow with seven classes (Table~\ref{tab:data}). The people in view are the authors, wearing site PPE. Plant frames have no absence (negative) labels, so the plant evaluation measures PPE detection and cannot measure violation detection. We use only original frames, without Roboflow augmentations, so no altered copy of a training frame can reach the test set. The 14 recordings form five folds of 40 to 43 frames, built by assigning the largest remaining recording to the lightest fold. Gloves and goggles occur in few recordings, so some folds contain none.
+
+\textbf{Public data and class map.} Roboflow PPE-Detection \cite{roboflowppe} (308 construction images), SH17 \cite{ahmad2024sh17} (about 8{,}000 industrial images) and Roboflow gas masks \cite{roboflowgasmasks} (361 images) are remapped by class name into nine classes: Person, helmet, vest, gloves, boots, goggles, no\_helmet, no\_gloves and gas mask. no\_helmet and no\_gloves come only from Roboflow PPE-Detection, and SH17's body-part classes are dropped. Remapping by name rather than by numeric ID is necessary, since a naive merge had discarded about 43\% of training images as corrupt. Public sources are split 70/15/15 with a fixed seed, by original picture, so the 6 construction and 10 gas-mask pictures that were uploaded twice stay on one side. SH17 is capped at 1{,}500/300/300 images (uniform random, fixed seed), and 600 further SH17 training images are reserved for model S. In every run, no validation or test image is byte-identical to a training image, and a run stops if a plant recording appears on both sides.
+
+\begin{figure}[H]
 \centering
-\resizebox{0.85\columnwidth}{!}{%
+\resizebox{0.78\columnwidth}{!}{%
 \begin{tikzpicture}[
   font=\footnotesize\sffamily,
   >=Latex,
-  box/.style={
-    draw,
-    rounded corners=1.5pt,
-    align=center,
-    inner sep=3pt,
-    line width=0.6pt
-  },
+  box/.style={draw, rounded corners=1.5pt, align=center, inner sep=3pt, line width=0.6pt},
   src/.style={box, fill=gray!12, minimum height=0.85cm, minimum width=3.1cm},
-  stage/.style={box, fill=gray!12, minimum height=1.5cm, minimum width=2.6cm},
-  ckptbox/.style={box, fill=gray!25, minimum height=1.5cm, minimum width=1.6cm},
+  stage/.style={box, fill=gray!12, minimum height=1.6cm, minimum width=2.6cm},
+  ckptbox/.style={box, fill=gray!25, minimum height=1.6cm, minimum width=1.6cm},
   branch/.style={box, fill=gray!12, minimum height=1.9cm, text width=4.7cm},
+  proposed/.style={box, dashed, fill=white, minimum height=1.9cm, text width=4.7cm},
   arrow/.style={->, thick, shorten >=1pt, shorten <=1pt},
   note/.style={font=\scriptsize\sffamily, fill=white, inner sep=1pt}
 ]
-  \node[src] (d1) {Roboflow PPE-Detection\\[-1pt]{\scriptsize public $\cdot$ helmets, vests}};
+  \node[src] (d1) {Roboflow PPE-Detection\\[-1pt]{\scriptsize public $\cdot$ 308 construction images}};
   \node[src, below=0.25cm of d1] (d2) {SH17\\[-1pt]{\scriptsize public $\cdot$ 17 industrial classes}};
-  \node[src, below=0.25cm of d2] (d3) {Roboflow gas masks\\[-1pt]{\scriptsize public $\cdot$ 384 images}};
-  \node[src, below=0.25cm of d3] (d4) {OCP site cameras\\[-1pt]{\scriptsize self-annotated}};
+  \node[src, below=0.25cm of d2] (d3) {Roboflow gas masks\\[-1pt]{\scriptsize public $\cdot$ 361 images}};
+  \node[src, below=0.25cm of d3] (d4) {OCP plant recordings\\[-1pt]{\scriptsize 207 frames, 14 recordings}};
 
   \coordinate (mid) at ($(d2.east)!0.5!(d3.east)$);
   \node[stage, right=1.7cm of mid] (split) {%
-    \textbf{Fuse + split}\\[1pt]
-    unified 10-class map\\[-1pt]
-    {\scriptsize 70/15/15 split,}\\[-2pt]
-    {\scriptsize OCP $\times$3 sampling}};
+    \textbf{Pool + split}\\[1pt]
+    9 classes, remapped by name\\[-1pt]
+    {\scriptsize public: 70/15/15 by picture,}\\[-2pt]
+    {\scriptsize OCP: 5 folds by recording}};
   \node[stage, right=0.45cm of split] (train) {%
     \textbf{YOLOv8n fine-tune}\\[1pt]
-    $640\times640$, batch 16\\[-1pt]
-    {\scriptsize $\leq$50 epochs,}\\[-2pt]
-    {\scriptsize patience 20}};
+    B, P, S, A (Table~\ref{tab:models})\\[-1pt]
+    {\scriptsize one recipe: $640$, batch 16,}\\[-2pt]
+    {\scriptsize 50 epochs}};
   \node[ckptbox, right=0.45cm of train] (ckpt) {%
-    \textbf{best.pt}\\[-1pt]
-    {\scriptsize checkpoint}};
+    \textbf{final}\\[-1pt]
+    \textbf{weights}\\[-1pt]
+    {\scriptsize epoch 50}};
 
-  \draw[arrow] (d1.east) -- node[note, pos=0.45, above, sloped] {ID remap} ($(split.west)+(0,0.55)$);
-  \draw[arrow] (d2.east) -- node[note, pos=0.45, above, sloped] {ID remap, capped} ($(split.west)+(0,0.2)$);
-  \draw[arrow] (d3.east) -- node[note, pos=0.45, below, sloped] {ID remap} ($(split.west)+(0,-0.2)$);
-  \draw[arrow] (d4.east) -- node[note, pos=0.45, below, sloped] {sampling weight $\uparrow$} ($(split.west)+(0,-0.55)$);
+  \draw[arrow] (d1.east) -- node[note, pos=0.45, above, sloped] {remap} ($(split.west)+(0,0.55)$);
+  \draw[arrow] (d2.east) -- node[note, pos=0.45, above, sloped] {remap, capped} ($(split.west)+(0,0.2)$);
+  \draw[arrow] (d3.east) -- node[note, pos=0.45, below, sloped] {remap} ($(split.west)+(0,-0.2)$);
+  \draw[arrow] (d4.east) -- node[note, pos=0.45, below, sloped] {$\times$3, train only} ($(split.west)+(0,-0.55)$);
   \draw[arrow] (split) -- (train);
   \draw[arrow] (train) -- (ckpt);
 
   \coordinate (topmidR) at ($(train.south)!0.5!(ckpt.south)$);
   \node[branch, below=2.1cm of topmidR] (eval) {%
-    \textbf{Evaluation}\\[1pt]
-    vs.\ generic baseline, OCP test + industrial proxy\\[-1pt]
-    {\scriptsize $\rightarrow$ P/R/mAP50, confusion matrix (Section~\ref{sec:methods-comparison})}};
-  \node[branch, right=0.4cm of eval] (deploy) {%
-    \textbf{Deployment}\\[1pt]
-    IP camera inference, 9.35\,ms/frame\\[-1pt]
-    {\scriptsize conf.-thresholded alert: camera ID, class, clip $\rightarrow$ safety personnel}};
+    \textbf{Evaluation} (Section~\ref{sec:results})\\[1pt]
+    held-out OCP recordings + public test sets\\[-1pt]
+    {\scriptsize $\rightarrow$ mAP, P/R at 0.25, 95\% CI over recordings}};
+  \node[proposed, right=0.4cm of eval] (deploy) {%
+    \textbf{Deployment} {\scriptsize (proposed, not evaluated)}\\[1pt]
+    camera stream $\rightarrow$ detector + ByteTrack\\[-1pt]
+    {\scriptsize alert after 5 frames $\rightarrow$ safety staff review}};
 
   \draw[arrow] (ckpt.south) -- ++(0,-0.5) coordinate (fork) -| (eval.north);
-  \draw[arrow] (fork) -| (deploy.north);
+  \draw[arrow, dashed] (fork) -| (deploy.north);
 \end{tikzpicture}%
 }
-\caption{System architecture: four sources are remapped (explicit label-ID mapping; SH17 capped at 1,500 train / 300 val / 300 test) and fused under a unified ten-class map, with OCP given a higher ($\times$3) sampling weight since it is the deployment domain itself; YOLOv8n is fine-tuned on the result; the checkpoint feeds both the generic-vs-adapted evaluation harness and the live deployment path that dispatches alerts to safety personnel.}
+\caption{System architecture. Four sources are remapped by class name into nine classes and pooled. Public images are split by picture and plant frames by recording into five folds; plant frames are copied three times after the split, in training only. Four models (B, P, S, A) are fine-tuned with one recipe, and their final weights are evaluated on held-out recordings. The dashed deployment branch was designed but not evaluated.}
 \label{fig:pipeline}
 \end{figure}
 
-\subsection{Dataset Construction}
-\label{sec:methods-dataset}
+\begin{table}[H]
+\caption{Images per source and split, and boxes per class in the public training data and in each plant fold (whole recordings per fold). \todo{full per-class, per-split, per-source counts (counts.tex) as supplementary material}}
+\label{tab:data}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{2.6pt}
+\begin{tabular}{lccccccccccc}
+\toprule
+& Images & & \multicolumn{9}{c}{Boxes} \\
+\cmidrule(lr){4-12}
+Set & train/val/test & Rec. & Pers. & helm. & vest & glov. & boots & gogg. & no\_h. & no\_g. & gas m. \\
+\midrule
+Roboflow PPE-Det. & 215/46/47 & & & & & & & & & & \\
+SH17 & 1500(+600)/300/300 & & & & & & & & & & \\
+Gas masks & 255/52/54 & & & & & & & & & & \\
+Public train, total & 1{,}970 & & 3330 & 1471 & 2338 & 621 & 3254 & 1643 & 230 & 596 & 406 \\
+\midrule
+OCP fold 0 & 42 frames & 2 & 42 & 42 & 42 & 6  & 53 & 16 & -- & -- & 3  \\
+OCP fold 1 & 43 frames & 3 & 44 & 34 & 32 & 22 & 64 & 0  & -- & -- & 15 \\
+OCP fold 2 & 40 frames & 3 & 40 & 36 & 35 & 0  & 67 & 9  & -- & -- & 13 \\
+OCP fold 3 & 42 frames & 3 & 42 & 24 & 42 & 3  & 63 & 4  & -- & -- & 7  \\
+OCP fold 4 & 40 frames & 3 & 44 & 33 & 34 & 0  & 72 & 3  & -- & -- & 21 \\
+OCP, all   & 207 frames & 14 & 212 & 169 & 185 & 31 & 319 & 32 & -- & -- & 59 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-No single public corpus covers a chemical site's class mix, so training fuses three public sources plus one site-specific corpus under one class map (Fig.~\ref{fig:pipeline}): Roboflow PPE-Detection \cite{roboflowppe} (helmet/vest construction imagery), SH17 \cite{ahmad2024sh17} (17 classes, industrial scenes), and Roboflow gas masks \cite{roboflowgasmasks} (384 images). Unified ten-class map: Person, helmet, vest, gloves, boots, goggles, no\_helmet, no\_gloves, no\_goggle, gas mask. Explicit negative classes let the detector localize \emph{absence} directly rather than infer it from a missing detection.
+\textbf{Four training sets.} Table~\ref{tab:models} lists the models, each differing from the previous one in one factor. B is the construction-only benchmark. We train it ourselves with the same recipe as the other models, so its architecture, checkpoint and settings are known. Going from B to P adds public data and classes, and going from P to S adds training-set size alone. From S to A, 497 further public images are replaced by about 165 plant frames shown three times, which keeps the number of training images per epoch the same and isolates the effect of plant imagery. S sees more distinct images than A, which makes it a conservative control.
 
-Fusing annotations is not file concatenation: each source's class IDs index its own ontology (SH17's 0--16 is not the fused map), so naive merging reinterprets in-range IDs as the wrong class and discards out-of-range images as corrupt. A preliminary naive merge rejected roughly 43\% of training images this way. We remap explicitly first: each SH17 class maps to its fused ID or is excluded (body parts), recorded, labels rewritten before training.
+\begin{table}[H]
+\caption{The four models. Plant copies ($\times$3) are made after the split, in training only.}
+\label{tab:models}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llcc}
+\toprule
+Model & Training data & Train images & Runs \\
+\midrule
+B & Roboflow PPE-Detection (construction) & 215 & 3 seeds \\
+P & B + SH17 (1{,}500) + gas masks (255) & 1{,}970 & 3 seeds \\
+S & P + 497 further SH17 images & 2{,}467 & 3 seeds \\
+A & P + plant frames of four folds ($\times$3) & 2{,}462 to 2{,}471 & 5 folds \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-SH17 outnumbers the other three combined by an order of magnitude (8{,}000 vs.\ roughly 1{,}000: 308 Roboflow PPE-Detection, 361 gas-mask, 352 OCP), and both remap and per-epoch cost scale with pool size. Since well-represented classes saturate with a few hundred examples, we cap SH17 at 1{,}500 training images, 300 each for validation/test, uniform random with a fixed seed, bounding compute on a single Colab GPU at no material cost to common-class accuracy, at the price of thinning scarce SH17 classes and val/test metrics on a subsample (Section~\ref{sec:discussion}).
+\textbf{Training recipe.} We use Ultralytics 8.4.95 \cite{ultralytics2023} and YOLOv8n from COCO weights (3.0M parameters, 8.1 GFLOPs at 640), with input 640, batch 16, 50 epochs, AdamW (learning rate $7.7\times10^{-4}$, $\beta_1$ 0.9, weight decay $5\times10^{-4}$, 3 warm-up epochs; Ultralytics' automatic choice for runs under 10{,}000 iterations), HSV jitter, flips, random erasing (0.4) and mosaic (off for the last 10 epochs), on a Tesla T4 (Google Colab). The augmentations were chosen for plant conditions. Colour jitter imitates dust haze and glare, erasing imitates pipes and equipment hiding part of a worker, and mosaic covers the wide range of worker sizes across camera positions. All runs share one validation split of 398 public images. We validate only after the last epoch and keep the final weights, so no checkpoint is selected on any data. B, P and S use seeds 0, 1 and 2; A uses seed 0 in each fold.
 
-Gas masks come from the Roboflow gas masks corpus \cite{roboflowgasmasks}, safety-critical yet under-represented in construction data; unlike OCP, not oversampled (a generic stand-in, not the deployment domain). The fourth component, self-annotated OCP site-camera imagery, captures phosphate dust, lighting transitions, and site uniforms, annotated against the fused map and given higher sampling weight; a held-out, disjoint portion forms the chemical-plant evaluation set (Section~\ref{sec:methods-comparison}), subject to imagery clearance. The fused dataset splits 70\%/15\%/15\% independently per source (unstratified), fixed seed.
+\textbf{Test sets.} The fold-$k$ model of A is tested only on the recordings of fold $k$. B, P and S never see plant frames and are tested on all 207, so pooling A's five out-of-fold predictions puts every model on the same frames. The public test set has 401 images (47 construction, 300 SH17, 54 gas mask). Its SH17 and gas-mask images (354, called held-out images below) come from the same sources as training images, so they do not test transfer to a new setting.
 
-\subsection{Preprocessing}
-\label{sec:methods-preprocessing}
+\textbf{Scoring and uncertainty.} One evaluation script computes every number (Table~\ref{tab:protocol}). Each model predicts once per test set at a confidence floor of 0.001 (NMS IoU 0.7, at most 300 boxes). mAP@50 and mAP@50:95 follow the COCO definition (greedy matching, 101-point interpolation), and our implementation agrees with pycocotools to $10^{-6}$. Precision and recall are pooled over classes at confidence 0.25 and IoU 0.5. Classes without ground truth in a test set are left out of the mean. \emph{Common} classes are those B was trained on (on plant frames: Person, helmet, vest, gloves, boots), and \emph{all} means the nine classes (seven on plant frames). We report mean $\pm$ s.d.\ over seeds (B, P, S) or folds (A), and 95\% confidence intervals from 1{,}000 bootstrap resamples of the 14 recordings. We resample whole recordings because frames of one recording are correlated, and we compute model differences on the same resamples.
 
-Images are resized to $640\times640$. Augmentation targets IP-camera failure modes: HSV jitter (dust haze/glare), horizontal flipping, random erasing (occlusion), and mosaic (scale/context), disabled in the final epochs for realistic late-training frames.
-
-\subsection{Model Training}
-\label{sec:methods-training}
-
-The detector is YOLOv8n \cite{ultralytics2023}: 3.0M parameters, 8.1 GFLOPs at $640\times640$, 6.3 MB, small by design since inference must run on commodity hardware alongside existing video infrastructure. Training: Google Colab, up to 50 epochs, $640\times640$, batch 16, patience 20 (the reported run trained the full 50 epochs); auto-configured SGD, LR 0.01, momentum 0.937, weight decay $5\times10^{-4}$, 3-epoch warmup. Best checkpoint by validation fitness exported as \texttt{best.pt}, used throughout.
-
-\subsection{Generic-vs-Adapted Comparison Protocol}
-\label{sec:methods-comparison}
-
-The central experiment: does generic benchmark training transfer to an operating chemical plant? The \emph{generic baseline} trains solely on Roboflow PPE-Detection \cite{roboflowppe} (308 images, 9 classes; 58.1\% precision, 64.4\% recall, 59.1\% mAP@50 on its own validation split), the off-the-shelf public model. The \emph{industrial-adapted model} is the fused-dataset detector of Section~\ref{sec:methods-training}.
-
-Both are evaluated on two held-out sets: OCP site imagery (Section~\ref{sec:methods-dataset}, the deployment domain) and an \emph{industrial proxy} of SH17 and gas-mask images \cite{roboflowgasmasks}, publishable without clearance. Metrics use classes common to both maps (person, helmet, vest, gloves, negative states) at identical resolution/thresholds. The baseline also trains on far less data, a confound discussed in Section~\ref{sec:discussion}; the comparison measures what the public model actually delivers on plant imagery.
+\begin{table}[H]
+\caption{Protocol behind each number. All: final-epoch weights, input 640, AP confidence floor 0.001, P/R at confidence 0.25, matching IoU 0.5, NMS IoU 0.7.}
+\label{tab:protocol}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lllll}
+\toprule
+Table & Models & Test set & Classes & Images (rec.) \\
+\midrule
+\ref{tab:main} & B, P, S, A & plant frames, pooled & common / all & 207 (14) \\
+\ref{tab:other} & B, P, S, A & public / construction / held-out & common / all & 401 / 47 / 354 \\
+\ref{tab:perclass} & B, S, A & plant frames, pooled & per class & 207 (14) \\
+\bottomrule
+\end{tabular}
+\end{table}

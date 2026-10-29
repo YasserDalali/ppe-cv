@@ -1,128 +1,112 @@
-\section{Results and Analysis}\label{sec:results}
+\section{Results}\label{sec:results}
 
-This section's central result is the generic-vs-adapted comparison (Section~\ref{sec:results-comparison}), then the adapted detector's aggregate/per-class behavior (78.0\% precision, 63.5\% recall, 68.6\% mAP@50, 9.35~ms/frame on a Tesla T4-class GPU) and error structure.
+All 14 runs completed the full 50 epochs on one T4, taking about 5\,min per B run, 32\,min per P run and 40\,min per S or A run.
 
-\subsection{Generic vs.\ Industrial-Adapted Model}\label{sec:results-comparison}
+\textbf{Plant frames (Table~\ref{tab:main}, Fig.~\ref{fig:bars}).} The construction-only benchmark B reaches 43.9\,$\pm$\,1.0\% mAP@50 on its five classes (seeds: 45.0, 43.7 and 43.1\%). More public data (P$-$B) lowers mAP@50 by 16.6 points, training-set size alone (S$-$P) adds 2.9, and plant frames at equal size (A$-$S) add 42.3 (95\% CI [37.8, 47.2]). No single recording carries the effect. A$-$S is positive in all 1{,}000 resamples and in every fold, by 35.1 to 59.9 points on each fold's own frames. A ranges from 70.0 to 94.0\% across folds. The two folds without gloves score highest (94.0 and 86.0\%) because no model detects gloves (see below). For the same reason A's pooled score (72.5\%) is lower than its per-fold mean (79.9\%), since pooling scores gloves over all 207 frames.
 
-Table~\ref{tab:comparison} holds the central experiment (protocol: Section~\ref{sec:methods-comparison}); Fig.~\ref{fig:comparison} plots the same precision/recall/mAP@50 values across all three evaluation sets.
+\textbf{Where the gain comes from (Table~\ref{tab:perclass}).} Every model finds persons (95 to 97\%). The gain is in vests, boots and helmets. The plant's ``vest'' is a dark work jacket with reflective bands, and no public model recognizes it as a vest (B 0.5\%, S 0.0\%, A 96.4\%; Fig.~\ref{fig:examples}). Leaving vests out, A$-$S is still 28.8 points and A$-$B 11.7, mostly from boots. Adding public industrial images makes helmets and boots harder to find at the plant: from B to P, helmets drop from 81.3 to 30.1\% and boots from 42.8 to 10.6\%. SH17 supplies 1{,}500 of P's 1{,}970 training images, and its PPE is mostly photographed large and close up, whereas plant PPE is small and seen from a distance. Neither public model detects gas masks, and A reaches 23.4\%. No model detects gloves or goggles (A: 0.0 and 0.1\%). Both are small at plant camera distances, often occluded, and rare (31 and 32 boxes in a few recordings).
 
-\begin{table}[htbp]
-\caption{Central experiment: generic construction-benchmark detector vs.\ industrial-adapted model. Shared-class metrics (person, helmet, vest, gloves, and their negative states; conf=0.25, IoU=0.5) per the protocol of Section~\ref{sec:methods-comparison}.}
-\label{tab:comparison}
+\begin{table}[H]
+\caption{Plant frames (207 frames, 14 recordings), mAP@50 in \%. B, P, S: mean $\pm$ s.d.\ over three seeds. A: one value from the pooled out-of-fold predictions of its five fold models (70.0 to 94.0\% per fold). 95\% CIs come from 1{,}000 bootstrap resamples of recordings, and differences are paired. P/R at confidence 0.25. Empty cells: B was not trained on goggles and gas masks.}
+\label{tab:main}
 \centering
-\footnotesize
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{llccc}
+\scriptsize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{lcccccc}
 \toprule
-Model & Evaluation set & P (\%) & R (\%) & mAP@50 (\%) \\
+& \multicolumn{2}{c}{Common classes (5)} & \multicolumn{2}{c}{All classes (7)} & & \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Model & mAP@50 & 95\% CI & mAP@50 & 95\% CI & P (\%) & R (\%) \\
 \midrule
-Generic \cite{roboflowppe} & Own val.\ (construction) & 58.1 & 64.4 & 59.1 \\
-Generic \cite{roboflowppe} & Industrial proxy & 1.5 & 2.2 & 0.4 \\
-Generic \cite{roboflowppe} & OCP site imagery & 29.3 & 26.2 & 18.5 \\
-\addlinespace
-Adapted (ours) & Fused validation & 75.6 & 64.6 & 48.6 \\
-Adapted (ours) & Industrial proxy & 73.5 & 69.2 & 49.6 \\
-Adapted (ours) & OCP site imagery & 84.9 & 87.4 & 65.5 \\
+B (construction only) & 43.9 $\pm$ 1.0 & [41.0, 47.0] & -- & -- & 59.2 & 48.9 \\
+P (public, OCP off) & 27.3 $\pm$ 1.3 & [22.8, 31.7] & 19.5 $\pm$ 1.0 & [16.4, 22.6] & 39.3 & 34.3 \\
+S (public, size of A) & 30.2 $\pm$ 0.8 & [23.7, 35.9] & 21.8 $\pm$ 0.6 & [17.5, 25.8] & 43.7 & 36.8 \\
+A (public + plant) & \textbf{72.5} & [68.7, 75.1] & \textbf{55.1} & [52.5, 58.1] & 84.5 & 83.6 \\
+\midrule
+P $-$ B: more public data & $-$16.6 & [$-$21.8, $-$11.7] & -- & -- & & \\
+S $-$ P: size alone & +2.9 & [0.6, 5.0] & +2.2 & [0.7, 3.8] & & \\
+A $-$ S: plant imagery alone & +42.3 & [37.8, 47.2] & +33.4 & [29.5, 37.4] & & \\
+A $-$ B: total & +28.6 & [25.5, 30.5] & -- & -- & & \\
 \bottomrule
 \end{tabular}
 \end{table}
-
-\begin{figure}[htbp]
-\centering
-\begin{tikzpicture}
-\begin{axis}[
-  width=\columnwidth, height=5.8cm,
-  ybar, bar width=4.6pt,
-  ymin=0, ymax=122,
-  ytick={0,20,40,60,80,100},
-  ylabel={\footnotesize \%},
-  symbolic x coords={Own/Fused val., Ind. proxy, OCP site},
-  xtick=data,
-  tick label style={font=\footnotesize},
-  ymajorgrids, major grid style={gray!25},
-  axis line style={gray!60},
-  legend style={font=\tiny, draw=none, fill=none, at={(0.5,1.16)}, anchor=south, legend columns=3},
-  enlarge x limits=0.22,
-  nodes near coords,
-  every node near coord/.append style={font=\tiny, rotate=90, anchor=west, inner sep=1.5pt}
-]
-\addplot[fill=blue!25, draw=blue!70!black] coordinates {(Own/Fused val.,58.1) (Ind. proxy,1.5) (OCP site,29.3)};
-\addplot[fill=blue!50, draw=blue!70!black] coordinates {(Own/Fused val.,64.4) (Ind. proxy,2.2) (OCP site,26.2)};
-\addplot[fill=blue!85, draw=blue!70!black] coordinates {(Own/Fused val.,59.1) (Ind. proxy,0.4) (OCP site,18.5)};
-\addplot[fill=orange!35, draw=orange!85!black] coordinates {(Own/Fused val.,75.6) (Ind. proxy,73.5) (OCP site,84.9)};
-\addplot[fill=orange!65, draw=orange!85!black] coordinates {(Own/Fused val.,64.6) (Ind. proxy,69.2) (OCP site,87.4)};
-\addplot[fill=orange!95, draw=orange!85!black] coordinates {(Own/Fused val.,48.6) (Ind. proxy,49.6) (OCP site,65.5)};
-\legend{Generic P, Generic R, Generic mAP50, Adapted P, Adapted R, Adapted mAP50}
-\end{axis}
-\end{tikzpicture}
-\caption{Precision, recall, and mAP@50 for the generic and industrial-adapted detectors across each model's own validation split (construction imagery for generic, fused validation for adapted), the industrial proxy set, and OCP site imagery. Values match Table~\ref{tab:comparison}.}
-\label{fig:comparison}
-\end{figure}
-
-The generic detector is respectable on its own imagery (59.1\% mAP@50) but collapses on industrial imagery: 0.4\% industrial proxy, 18.5\% OCP, against 49.6\% and 65.5\% adapted. Two points follow. First, the industrial-proxy collapse is more informative: that set is still generic industrial imagery, not OCP-specific, so its near-total collapse shows ordinary domain shift alone defeats the generic model, before dust, angles, or uniforms enter the picture. Second, the OCP gap (18.5\% vs.\ 65.5\%) is the deployment-relevant number the abstract and conclusion lead with. Part of the collapse is plausibly a calibration artifact (fixed conf=0.25, tuned implicitly on construction imagery). This is one reason Section~\ref{sec:discussion} treats the training-set-size confound as open, not settled.
-
-Fig.~\ref{fig:ocp-compare2} compares the models qualitatively on identical OCP frames under the dust, oblique angles, and uniforms that motivated the adaptation.
-
-\begin{figure}[htbp]
-\centering
-\begin{minipage}{0.48\columnwidth}
-\centering
-\includegraphics[width=\linewidth]{figures/ocp_qualitative_2.jpg}\\[2pt]
-{\scriptsize (a)}
-\end{minipage}\hfill
-\begin{minipage}{0.48\columnwidth}
-\centering
-\includegraphics[width=\linewidth]{figures/ocp_qualitative_3.jpg}\\[2pt]
-{\scriptsize (b)}
-\end{minipage}
-\caption{Two OCP frames, adapted (left, green) vs.\ generic (right, red). (a) Adapted: 7 detections including gas mask, absent from the generic class inventory; generic: 3, head-region box misplaced on scaffolding. (b) Active spray/dust: adapted localizes Person and vest tightly; generic detects the helmet at 0.39 confidence and places a spurious ``gloves'' box on a rusted pipe, nowhere near the worker's hands.}
-\label{fig:ocp-compare2}
-\end{figure}
-
-\subsection{Training Performance}\label{sec:results-training}
-
-Over the 50-epoch run, box, classification, and DFL losses decline from 1.38, 2.55, 1.39 to 0.90, 0.59, 1.04, validation tracking training with no overfitting divergence. The validation curve stabilizes by epoch 25: mAP@50 closes at 68.4\% (mAP@50--95 40.6\%); recall plateaus near 60--66\%; precision, noisier, ends at 74.4\%. Headline values elsewhere come from a separate \texttt{best.pt} evaluation on val, so Table~\ref{tab:perclass}'s all-classes row (78.0/63.5/68.6\%) differs slightly from the epoch-50 curve: it scores all ten classes, versus the seven shared with the generic baseline (Section~\ref{sec:methods-comparison}) used elsewhere, answering different questions.
-
-\subsection{Detection Performance by Class}\label{sec:results-perclass}
-
-Table~\ref{tab:perclass} breaks performance down by class. Support: Person/vest/boots deepest (379, 306, 289 images); helmet/gas mask/gloves mid-tier (137, 65, 63); no\_helmet (12) and no\_gloves (33) thin; no\_goggle none (Section~\ref{sec:results-errors}).
-
-\begin{table}[htbp]
-\caption{Per-class detection performance on the validation split.}
-\label{tab:perclass}
-\centering
-\footnotesize
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{lccc}
-\toprule
-Class & Precision (\%) & Recall (\%) & mAP@50 (\%) \\
-\midrule
-Person      & 86.8 & 86.3 & 90.2 \\
-helmet      & 75.6 & 53.6 & 59.8 \\
-no\_helmet  & 68.8 & 54.8 & 57.0 \\
-vest        & 87.6 & 81.0 & 85.4 \\
-gloves      & 60.3 & 30.6 & 33.8 \\
-no\_gloves  & 66.0 & 38.3 & 45.1 \\
-goggles     & 86.6 & 84.0 & 86.2 \\
-no\_goggle  & 0.0 & 0.0 & 0.0 \\
-boots       & 81.8 & 64.2 & 73.6 \\
-gas mask    & 88.5 & 79.1 & 86.1 \\
-\midrule
-\textbf{All classes} & 78.0 & 63.5 & 68.6 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Three classes clear 85\% mAP@50: goggles (86.2\%), gas mask (86.1\%), vest (85.4\%), notable since goggles/gas mask are exactly the chemical-specific classes construction benchmarks under-represent (Section~\ref{sec:methods-dataset}); the composite dataset closed that gap. gloves is the low outlier (33.8\% mAP@50, 30.6\% recall), the smallest, most occluded class. no\_goggle's 0.0\% row is a data-absence artifact, detailed next.
-
-\subsection{Error Analysis}\label{sec:results-errors}
-
-The confusion matrix (Fig.~\ref{fig:confusion}) shows missed detection, not equipped/unequipped confusion, dominates: the largest off-diagonal mass is always the background row. Helmet: 59\% correct, 37\% missed, 6\% confused with no\_helmet; similarly no\_gloves (47\% correct) and boots (70\% correct, 24\% missed). gloves is the weakest diagonal (33\% correct, matching 33.8\% mAP@50), thin, occluded, hard at IP camera range (Section~\ref{sec:discussion}). no\_goggle has no row/column at all (zero training/validation instances), so its 0.0\% row is data absence, not failure (Section~\ref{sec:discussion}); the same thinness affects no\_helmet (12) and no\_gloves (33). A class-aware SH17 cap (Section~\ref{sec:discussion}) could separate genuine weakness from support scarcity in future runs.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.58\columnwidth]{figures/confusion_matrix.png}
-\caption{Normalized confusion matrix of the adapted detector on the fused validation split. Rows are predicted class, columns are true class; the background row/column captures missed detections and spurious predictions respectively. no\_goggle has no instances and is empty by construction.}
-\label{fig:confusion}
+\IfFileExists{figures/ablation_bars.tex}{\input{figures/ablation_bars.tex}}{%
+\fbox{\parbox[c][4.2cm][c]{0.9\columnwidth}{\centering\scriptsize\textcolor{red}{[Figure placeholder: ablation\_bars.tex from results/revision/final, generated with the real values]}}}}
+\caption{mAP@50 of the four models on each test set, for the classes all four were trained on (person, helmet, vest, gloves, boots). On plant frames all models are scored on the same 207 frames and error bars are 95\% CIs from the recording bootstrap; on the other sets they show mean $\pm$ s.d.\ over runs. Values match Tables~\ref{tab:main} and~\ref{tab:other}.}
+\label{fig:bars}
 \end{figure}
 
+\begin{table}[H]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{minipage}[t]{0.47\columnwidth}
+\centering
+\caption{Public test sets, mAP@50 (\%), mean $\pm$ s.d. Held-out: SH17 + gas-mask test images, whose sources are in training.}
+\label{tab:other}
+\begin{tabular}{lcccc}
+\toprule
+& \multicolumn{2}{c}{Public (401)} & Constr. & Held-out \\
+Model & common & all & (47) & (354), all \\
+\midrule
+B & 22.2$\pm$0.4 & -- & \textbf{59.6}$\pm$1.5 & -- \\
+P & \textbf{63.4}$\pm$0.8 & \textbf{69.3}$\pm$0.6 & 52.8$\pm$0.2 & 70.9$\pm$0.7 \\
+S & 63.3$\pm$0.5 & 68.9$\pm$0.5 & 51.2$\pm$1.0 & \textbf{71.4}$\pm$0.8 \\
+A & 62.3$\pm$1.2 & 68.2$\pm$0.9 & 51.9$\pm$1.8 & 69.8$\pm$0.7 \\
+\bottomrule
+\end{tabular}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.5\columnwidth}
+\centering
+\caption{Plant frames per class: AP@50 (\%), and A's P/R at 0.25. n/a: not in B's training data.}
+\label{tab:perclass}
+\begin{tabular}{lcccccc}
+\toprule
+Class & Boxes & B & S & A & P$_A$ & R$_A$ \\
+\midrule
+Person   & 212 & 95.0 & 95.2 & 96.6 & 94.9 & 95.8 \\
+helmet   & 169 & 81.3 & 39.3 & 88.4 & 82.9 & 83.4 \\
+vest     & 185 & 0.5  & 0.0  & 96.4 & 86.9 & 96.8 \\
+gloves   & 31  & 0.0  & 0.3  & 0.0  & 0.0  & 0.0 \\
+boots    & 319 & 42.8 & 16.2 & 81.0 & 80.2 & 76.2 \\
+goggles  & 32  & n/a  & 0.0  & 0.1  & 0.0  & 0.0 \\
+gas mask & 59  & n/a  & 1.4  & 23.4 & 33.3 & 18.6 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\end{table}
+
+\textbf{Public test sets (Table~\ref{tab:other}).} Each model does best on the kind of image it was trained on: B on construction images, P and S on public images, and A on plant frames. Plant frames cost A about one point on the public test set (62.3\,$\pm$\,1.2 vs.\ 63.3\,$\pm$\,0.5\% for S). B, which never saw SH17 or gas-mask images, scores 14.3\% on the common classes of the held-out images and 22.2\% on the public test set.
+
+\textbf{Threshold (Fig.~\ref{fig:pr}a).} On the common classes, the F1-optimal confidence threshold on plant frames is 0.35 for A (F1 85.6\%), 0.28 for B (54.1\%), 0.43 for P and 0.33 for S. The 0.25 we use for P/R is below every model's optimum and closest to B's, so it does not favor A.
+
+\textbf{Speed.} We measured speed offline on a Tesla T4 (Google Colab) at batch size 1, over 200 plant frames ($1920\times1080$) after 10 warm-up frames. One A model needs 11.7\,ms per frame (2.0\,ms pre-processing, 8.5\,ms inference, 1.2\,ms NMS). The figure covers the model only. It excludes video decoding, network transfer and alert handling, and we did not measure the end-to-end throughput of a multi-camera deployment.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\linewidth]{figures/ocp_examples.jpg}\\[-1pt]
+\makebox[0.8\linewidth]{\scriptsize\makebox[0.2\linewidth]{(a)}\hfill\makebox[0.2\linewidth]{(b)}\hfill\makebox[0.2\linewidth]{(c)}\hfill\makebox[0.2\linewidth]{(d)}}
+\caption{Four held-out plant frames from different recordings, chosen among those where A finds the most objects that B misses, so they illustrate rather than measure. Top: A's fold model, which never saw the recording (green). Bottom: B, seed 0 (red). Confidence $\geq$\,0.25, cropped around the worker. (a) B misses a worn helmet and the work jacket. (b) The worker carries the helmet and wears a gas mask. B's no\_helmet call is correct but cannot be scored, since plant frames have no absence labels, and A detects the carried helmet as an item, which does not establish compliance. (c) For a second worker in a dark blue coat, B finds the helmet but not the coat, which A detects as a vest. (d) In the shade B detects nothing, while A finds the worker, helmet and jacket.}
+\label{fig:examples}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{minipage}[b]{0.49\columnwidth}
+\centering
+\IfFileExists{figures/pr_curves.pdf}{\includegraphics[width=0.72\linewidth]{figures/pr_curves.pdf}}{\fbox{\parbox[c][4.2cm][c]{0.94\linewidth}{\centering\scriptsize\textcolor{red}{[Figure placeholder: pr\_curves.pdf from results/revision/final]}}}}\\[1pt]
+{\scriptsize (a)}
+\end{minipage}\hfill
+\begin{minipage}[b]{0.49\columnwidth}
+\centering
+\IfFileExists{figures/confusion_matrix.pdf}{\includegraphics[width=0.72\linewidth]{figures/confusion_matrix.pdf}}{\fbox{\parbox[c][4.2cm][c]{0.94\linewidth}{\centering\scriptsize\textcolor{red}{[Figure placeholder: confusion\_matrix.pdf from results/revision/final]}}}}\\[1pt]
+{\scriptsize (b)}
+\end{minipage}
+\caption{Plant frames, pooled. (a) Precision against recall on the common classes for confidence thresholds from 0.05 to 0.95 (B, P, S: seed 0). Dots mark each model's F1-optimal point. (b) Confusion matrix of A on all classes (out-of-fold predictions, confidence 0.25, IoU 0.5). Rows are the true class and columns the predicted class; the last column counts missed objects and the last row counts detections that match no object. Cells show counts, and shading shows the share of each row.}
+\label{fig:pr}
+\end{figure}
+
+\textbf{Error analysis (Fig.~\ref{fig:pr}b).} Most of A's errors are missed objects. Of 1{,}007 plant objects, 76.4\% are found, 21.6\% are missed and 2.0\% get the wrong class, mainly boots read as helmets (8 cases). A finds 95.7\% of vests, 81.7\% of helmets and 76.2\% of boots, but only 18.6\% of gas masks and no gloves or goggles. These three are the smallest objects. In the 640-pixel model input, the median plant goggle is 11 pixels across (57 in SH17 training images), a gas mask 23 (170 in the gas-mask dataset, mostly face close-ups) and a glove 12 (29 to 36). A sees most gas masks but with low confidence: 41 of 59 have a matching box at some confidence, and 11 above 0.25. Its goggle boxes are poorly placed, and gloves are not detected at all. Our compute budget (14 runs on one T4 GPU) kept the input at 640 pixels. A 1280-pixel input would double the size of these objects, at about four times the computation. Over the 207 frames, 153 detections match no object, most of them boots (60). Plant frames have no absence labels, so we cannot assess the absence classes here.

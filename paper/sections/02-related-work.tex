@@ -1,32 +1,24 @@
 \section{Related Work}\label{sec:related}
 
-PPE detection has consolidated around YOLO \cite{ultralytics2023,ppeyolo2024,edgeyolo2024}, mostly trained on Roboflow PPE-Detection \cite{roboflowppe}. The shared limitation (Table~\ref{tab:relwork}): class inventories center on hard hats and vests, respiratory/eye protection is absent, nothing adapts to site dust/lighting/uniforms, and none has been evaluated on a real operating chemical plant.
+Most PPE detectors now use YOLO \cite{ultralytics2023,ppeyolo2024,edgeyolo2024} and are usually trained on Roboflow PPE-Detection \cite{roboflowppe}; SH17 \cite{ahmad2024sh17} extends the label space to 17 industrial classes (Table~\ref{tab:relwork}). Class lists center on helmets and vests, and respiratory and eye protection is largely missing. Site conditions are rarely targeted, and few of the studies we reviewed report evaluation at an operating chemical plant.
 
-SH17 \cite{ahmad2024sh17} widens the label space to seventeen classes (the broadest public industrial inventory) but stays generic-manufacturing, with no domain-shift mechanism for a specific plant. It is an ingredient for a site-adapted model, not a substitute.
+The evaluation protocol affects reported accuracy as much as the model does. Frames from one video are near-duplicates, so a frame-level split tests a detector on scenes it has already seen; splitting by recording or camera avoids this. A gain from adding site data can be credited to the site only if training-set size is held constant. None of the studies we reviewed does both on operating-plant imagery. Vigilance studies \cite{parasuraman1984,donald2015} motivate automation, and they also show that false alarms shift the burden to whoever reviews the output.
 
-A separate literature motivates detection at all: vigilance decays within the first half hour regardless of instruction \cite{parasuraman1984}, and diamond-plant operators caught only half of targeted risk behaviors with high false alarms \cite{donald2015}, which shift the vigilance burden downstream to whoever reviews the output.
-
-No prior work reports a controlled comparison of generic vs.\ industrially adapted detection on operating-plant imagery (Table~\ref{tab:relwork}); that comparison is this paper's center.
-
-\begin{table}[htbp]
-\caption{Summary of Related Work Across the Two Threads}
+\begin{table}[H]
+\caption{Related work.}
 \label{tab:relwork}
 \centering
-\footnotesize
+\scriptsize
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{p{2.6cm}p{2.2cm}p{2.6cm}p{3.6cm}}
+\begin{tabular}{lll}
 \toprule
-\textbf{Study/Source} & \textbf{Method} & \textbf{Focus} & \textbf{Key Finding} \\
+\textbf{Study} & \textbf{Data / setting} & \textbf{Relevant finding} \\
 \midrule
-DatasetPPE \cite{roboflowppe} & Public YOLO-format dataset & Helmet/vest detection & Widely reused baseline; construction-centric class set \\
-\addlinespace
-Ahmad et al. (2024) \cite{ahmad2024sh17} & Object-detection dataset & 17 PPE and body-part classes in manufacturing & Broadest public industrial PPE label space; generic conditions \\
-\addlinespace
-Barlybayev et al. (2024) \cite{ppeyolo2024} & YOLOv8 benchmarking & PPE detection on public benchmark datasets & YOLOv8 performs competitively for PPE detection \\
-\addlinespace
-Kim et al. (2025) \cite{edgeyolo2024} & Improved YOLOv8 on edge devices & Fall-from-height PPE, construction sites & Real-time PPE detection feasible on edge hardware \\
-\addlinespace
-Donald et al. (2015) \cite{donald2015} & Field study of CCTV camera operators & Operator performance, diamond-processing plants & Reported low detection of target behaviours with high false-alarm rates \\
+DatasetPPE \cite{roboflowppe} & public, construction & widely reused baseline; helmet/vest classes \\
+Ahmad et al.\ \cite{ahmad2024sh17} & 17 classes, manufacturing & broadest public industrial PPE label space \\
+Barlybayev et al.\ \cite{ppeyolo2024} & public PPE benchmarks & YOLOv8 competitive for PPE detection \\
+Kim et al.\ \cite{edgeyolo2024} & construction, edge devices & real-time PPE detection on edge hardware \\
+Donald et al.\ \cite{donald2015} & CCTV operators, diamond plants & low detection of target behaviors, many false alarms \\
 \bottomrule
 \end{tabular}
 \end{table}

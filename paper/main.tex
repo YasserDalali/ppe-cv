@@ -15,6 +15,8 @@
 \renewcommand\UrlFont{\color{blue}\rmfamily}
 \urlstyle{rm}
 \raggedbottom
+% pinned [H] floats: tighter space above and below each one
+\setlength{\intextsep}{6pt plus 2pt minus 2pt}
 \setlength{\topmargin}{-24pt}
 \setlength{\headsep}{10pt}
 \addtolength{\textheight}{58pt}
@@ -23,11 +25,20 @@
 \addtolength{\textwidth}{86pt}
 \setlength{\footskip}{20pt}
 
+% Revision placeholders. \ph{...} (red) = a number still to come from
+% training results (results/revision/final/summary.json on Drive);
+% \todo{...} = text still to write. Remove both before submission.
+\newcommand{\ph}[1]{\textcolor{red}{#1}}
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+
 \begin{document}
 %
-\title{A Domain-Adapted Computer Vision Model for PPE Compliance Detection in Chemical Plant IP Camera Networks}
+% Title changed per reviewer R4-4 ("supervised fine-tuning", not "domain
+% adaptation") and because the plant footage was recorded with a phone.
+% If the chairs refuse a title change, keep the old title and the new text.
+\title{Site-Specific Fine-Tuning of a Lightweight Detector for PPE Detection at a Phosphate Chemical Plant: A Controlled Evaluation}
 %
-\titlerunning{A Computer Vision Model for PPE Compliance Detection at a Chemical Plant}
+\titlerunning{Site-Specific Fine-Tuning for PPE Detection at a Chemical Plant}
 %
 \author{Yasser Dalali \and
 Amine Zeguendry \and
@@ -43,7 +54,7 @@ Mohammed Taha Eladli}
 \begin{abstract}
 \input{sections/00-abstract}
 
-\keywords{PPE compliance \and YOLOv8 \and domain adaptation \and chemical industry \and HSE \and vigilance decrement \and IP camera retrofitting}
+\keywords{PPE detection \and YOLOv8 \and supervised fine-tuning \and chemical industry \and HSE \and controlled evaluation \and data leakage}
 \end{abstract}
 %
 \input{sections/01-introduction}
