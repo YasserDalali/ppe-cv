@@ -133,3 +133,24 @@ def test_object_sizes_cover_plant_and_public(ran):
     s = next(v for v in sizes["plant"].values() if v["n"])
     assert s["p5"] <= s["q1"] <= s["median"] <= s["q3"] <= s["p95"]
     assert "boxplot prepared" in (final / "object_sizes.tex").read_text()
+
+
+def test_object_sizes_read_polygons_and_boxes_alike(tmp_path):
+    from PIL import Image
+
+    from ppe.collect import object_sizes
+
+    cfg = revision_cfg(tmp_path)
+    pool = tmp_path / "pool"
+    for src, name, row in (("ocp", "a.jpg", "1 0.1 0.1 0.3 0.1 0.3 0.5 0.1 0.5"),  # polygon
+                           ("x", "b.jpg", "1 0.5 0.5 0.2 0.4")):  # cx cy w h, same box
+        (pool / "sources" / src / "images").mkdir(parents=True)
+        (pool / "sources" / src / "labels").mkdir(parents=True)
+        Image.new("RGB", (100, 50)).save(pool / "sources" / src / "images" / name)
+        (pool / "sources" / src / "labels" / name.replace(".jpg", ".txt")).write_text(row + "\n")
+    (pool / "splits.json").write_text(json.dumps(
+        {"ocp": {"frames": ["a.jpg"]}, "public": {"x": {"train": ["b.jpg"]}}}))
+    sizes = object_sizes(cfg, pool)
+    side = (0.2 * 100 * 0.4 * 50) ** 0.5 * cfg.imgsz / 100
+    assert sizes["plant"]["helmet"]["median"] == pytest.approx(side)
+    assert sizes["public"]["helmet"]["median"] == pytest.approx(side)

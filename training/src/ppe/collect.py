@@ -308,8 +308,13 @@ def object_sizes(cfg: Config, pool_dir: Path) -> dict:
             w, h = Image.open(img).size
             k = cfg.imgsz / max(w, h)
             for r in rows:
-                sizes[CANONICAL_CLASSES[int(r[0])]].append(
-                    (float(r[3]) * w * float(r[4]) * h) ** 0.5 * k)
+                coords = [float(x) for x in r[1:]]
+                if len(coords) == 4:  # cx cy w h
+                    bw, bh = coords[2], coords[3]
+                else:  # polygon (OCP's Roboflow export): its bounding box, as in load_eval_set
+                    bw = max(coords[0::2]) - min(coords[0::2])
+                    bh = max(coords[1::2]) - min(coords[1::2])
+                sizes[CANONICAL_CLASSES[int(r[0])]].append((bw * w * bh * h) ** 0.5 * k)
         out[group] = {}
         for c, v in sizes.items():
             p = np.percentile(v, [5, 25, 50, 75, 95]).tolist() if v else []
