@@ -94,7 +94,7 @@ def test_collect_pools_ocp_and_orders_models(ran):
     assert "B" not in pooled["scopes"]["all"]["models"]
     for name in ("ablation.tex", "ocp_pooled.tex", "per_class.tex", "protocol.tex",
                  "counts.tex", "ocp_folds.tex", "settings.tex", "summary.md",
-                 "confusion_matrix.png", "ablation_bars.tex", "ocp_example_1.jpg"):
+                 "confusion_matrix.png", "ablation_bars.tex", "ocp_example_1.jpg", "object_sizes.tex"):
         assert (final / name).is_file(), name
     assert "SGD" in (final / "settings.tex").read_text()
     ex = pooled["examples"]  # A finds everything, B nothing: largest gaps first
@@ -124,3 +124,12 @@ def test_settings_report_the_optimizer_that_auto_resolves_to(tmp_path):
     rows = dict(_settings(cfg, {"A_f0": {}}))
     assert rows["optimizer"] == "auto"
     assert rows["optimizer (effective)"].startswith("AdamW, lr0 0.000769, momentum 0.9")
+
+
+def test_object_sizes_cover_plant_and_public(ran):
+    final = ran.results_dir / "revision" / "final"
+    sizes = json.loads((final / "object_sizes.json").read_text())
+    assert set(sizes) == {"plant", "public"}
+    s = next(v for v in sizes["plant"].values() if v["n"])
+    assert s["p5"] <= s["q1"] <= s["median"] <= s["q3"] <= s["p95"]
+    assert "boxplot prepared" in (final / "object_sizes.tex").read_text()

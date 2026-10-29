@@ -4,12 +4,18 @@ Each column is one frame, cropped around the worker so boxes and labels stay
 readable at column width. Boxes are the predictions at confidence >= 0.25
 (the operating point), A from its out-of-fold model, B from seed 0.
 
+Absence classes (no_helmet, no_gloves) are not drawn: plant frames carry no
+absence labels, so those boxes cannot be checked against ground truth.
+
 Inputs: original OCP frames (any folder layout; matched by file name without
 the pool's "ocp__" prefix) and a small JSON {"A"|"B": {frame: {xyxy, cls,
 conf}}} exported from preds_ocp.json on Colab.
 
     python scripts/example_grid.py --frames <dir> --preds example_preds.json \
-        --out ../paper/figures/ocp_examples.jpg FRAME [FRAME ...]
+        --out ../paper/figures/ocp_examples.jpg FRAME[:MARGIN] [FRAME[:MARGIN] ...]
+
+MARGIN (default 0.15) pads the crop around the worker; a larger value keeps
+more of the scene, e.g. to show that a worker is far from the camera.
 """
 import argparse
 import json
@@ -42,6 +48,11 @@ def crop_box(entries: dict, size: tuple[int, int], margin: float = 0.15) -> tupl
     return left, top, left + w, top + h
 
 
+def drawn(entry: dict) -> dict:
+    keep = [i for i, c in enumerate(entry["cls"]) if not c.startswith("no_")]
+    return {k: [entry[k][i] for i in keep] for k in ("xyxy", "cls", "conf")}
+
+
 def panel(img: Image.Image, entry: dict, box: tuple, model: str) -> Image.Image:
     crop = img.crop(tuple(int(round(v)) for v in box)).resize(PANEL, Image.LANCZOS)
     sx = PANEL[0] / (box[2] - box[0])
@@ -70,17 +81,19 @@ def main() -> None:
     ap.add_argument("--frames", type=Path, required=True)
     ap.add_argument("--preds", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
-    ap.add_argument("frame", nargs="+", help="frame names as in preds (with the ocp__ prefix)")
+    ap.add_argument("frame", nargs="+", help="frame names as in preds (with the ocp__ prefix), "
+                    "optionally followed by :MARGIN")
     args = ap.parse_args()
 
     preds = json.loads(args.preds.read_text())
     files = {p.name: p for p in args.frames.rglob("*.jpg")}
     gap = 12
     grid = Image.new("RGB", (len(args.frame) * (PANEL[0] + gap) - gap, 2 * PANEL[1] + gap), "white")
-    for col, name in enumerate(args.frame):
+    for col, spec in enumerate(args.frame):
+        name, _, margin = spec.partition(":")
         img = ImageOps.exif_transpose(Image.open(files[name.removeprefix("ocp__")])).convert("RGB")
-        entries = {m: preds[m][name] for m in ("A", "B")}
-        box = crop_box(entries, img.size)
+        entries = {m: drawn(preds[m][name]) for m in ("A", "B")}
+        box = crop_box(entries, img.size, float(margin) if margin else 0.15)
         for row, model in enumerate(("A", "B")):
             grid.paste(panel(img, entries[model], box, model),
                        (col * (PANEL[0] + gap), row * (PANEL[1] + gap)))
