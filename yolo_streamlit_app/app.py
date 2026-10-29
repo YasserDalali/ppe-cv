@@ -168,9 +168,11 @@ with tab_live:
                     confirmed = st.session_state.temporal_filter.update(detections)
                     annotated = resized.copy()
                     mismatch_count = 0
+                    noncompliant = 0
 
                     if enable_zones:
                         persons, items = zones.classify_zones(confirmed)
+                        noncompliant = sum(False in c.values() for c in zones.compliance(persons, items))
 
                         # person boxes + dashed zone divider lines
                         for p in persons:
@@ -219,6 +221,8 @@ with tab_live:
                         st.metric("Confirmed (post-filter)", len(confirmed))
                         if enable_zones and flag_mismatches:
                             st.metric("Zone mismatches flagged", mismatch_count)
+                        if enable_zones:
+                            st.metric("Persons missing required PPE", noncompliant)
                         if show_resources:
                             st.metric("CPU", f"{psutil.cpu_percent()}%")
                             st.metric("RAM", f"{psutil.virtual_memory().percent}%")

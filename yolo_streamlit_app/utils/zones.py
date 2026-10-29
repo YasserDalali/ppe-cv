@@ -8,7 +8,11 @@ Bands are computed from whatever bbox is actually detected -- not an assumed
 full-body proportion -- so partially-visible people (e.g. only the top half
 in frame) still get 3 correctly-scaled bands. If the box is too squat to
 plausibly be a full body (aspect ratio check), labels fall back to generic
-"zone 1/2/3" instead of implying a body region that may not be pictured.
+"zone 1/2/3" instead of implying a body region that may not be pictured,
+and no item is rejected for its position.
+
+compliance() turns this into a per-person decision: a required item counts
+as worn only if it is assigned to that person and lies in its expected band.
 """
 
 PERSON_CLASS_NAMES = {"person"}
@@ -16,18 +20,22 @@ PERSON_CLASS_NAMES = {"person"}
 # zone 0 = top, 1 = mid, 2 = bottom. Classes not listed here are never flagged.
 DEFAULT_EXPECTED_ZONES = {
     "helmet": 0, "hard hat": 0, "hardhat": 0, "head": 0,
+    "goggles": 0, "gas mask": 0, "gas_mask": 0, "mask": 0,
     "vest": 1, "safety vest": 1, "hi-vis vest": 1, "gloves": 1,
     "boots": 2, "shoes": 2, "safety boots": 2,
 }
 
 FULL_BODY_ASPECT_RATIO = 1.2  # height/width above this -> treat as a full-ish body
+DEFAULT_REQUIRED = ("helmet", "vest", "boots")
+
+
+def _full_body(bbox):
+    w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    return w > 0 and h / w >= FULL_BODY_ASPECT_RATIO
 
 
 def _zone_labels(bbox):
-    x1, y1, x2, y2 = bbox
-    w, h = x2 - x1, y2 - y1
-    aspect = (h / w) if w > 0 else 0
-    if aspect >= FULL_BODY_ASPECT_RATIO:
+    if _full_body(bbox):
         return ["head/top", "torso/mid", "legs/bottom"]
     return ["zone 1 (top)", "zone 2 (mid)", "zone 3 (bottom)"]
 
@@ -65,7 +73,8 @@ def classify_zones(detections, expected_zones=None):
     expected_zones = expected_zones or DEFAULT_EXPECTED_ZONES
 
     persons = [
-        {"bbox": d.bbox, "zone_labels": _zone_labels(d.bbox), "boundaries": _zone_boundaries(d.bbox)}
+        {"bbox": d.bbox, "zone_labels": _zone_labels(d.bbox), "boundaries": _zone_boundaries(d.bbox),
+         "full_body": _full_body(d.bbox)}
         for d in detections if d.cls_name.lower() in PERSON_CLASS_NAMES
     ]
 
@@ -94,7 +103,8 @@ def classify_zones(detections, expected_zones=None):
                     zone_label = persons[best_idx]["zone_labels"][z]
                     break
             expected = expected_zones.get(it.cls_name.lower())
-            mismatch = expected is not None and zone_idx is not None and expected != zone_idx
+            mismatch = (expected is not None and zone_idx is not None and expected != zone_idx
+                        and persons[best_idx]["full_body"])
 
         items.append({
             "detection": it, "person_idx": best_idx,
@@ -102,3 +112,20 @@ def classify_zones(detections, expected_zones=None):
         })
 
     return persons, items
+
+
+
+def compliance(persons, items, required=DEFAULT_REQUIRED, expected_zones=None):
+    """Per person, {item: True | False | None} for each required item.
+    True: a detection of that class is assigned to the person and lies in its
+    expected band. False: none does (missing, or e.g. a helmet carried at
+    waist height). None: the box is too squat to be a whole body (cropped),
+    so a missing item may simply be out of view and is not reported."""
+    expected_zones = expected_zones or DEFAULT_EXPECTED_ZONES
+    out = []
+    for idx, p in enumerate(persons):
+        worn = {it["detection"].cls_name.lower() for it in items
+                if it["person_idx"] == idx and not it["mismatch"]
+                and (not p["full_body"] or it["zone_idx"] == expected_zones.get(it["detection"].cls_name.lower()))}
+        out.append({k: True if k in worn else (False if p["full_body"] else None) for k in required})
+    return out

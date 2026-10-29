@@ -16,6 +16,16 @@
 \renewcommand\UrlFont{\color{blue}\rmfamily}
 \urlstyle{rm}
 \raggedbottom
+% body text 9.5/11.5 pt (LNCS default 10/12), same display spacing rules
+\makeatletter
+\renewcommand\normalsize{%
+   \@setfontsize\normalsize{9.5}{11.5}%
+   \abovedisplayskip 8\p@ \@plus2\p@ \@minus4\p@
+   \abovedisplayshortskip \z@ \@plus3\p@
+   \belowdisplayshortskip 5\p@ \@plus3\p@ \@minus3\p@
+   \belowdisplayskip \abovedisplayskip
+   \let\@listi\@listI}
+\makeatother
 % pinned [H] floats: tighter space above and below each one
 \setlength{\intextsep}{6pt plus 2pt minus 2pt}
 \setlength{\topmargin}{-24pt}

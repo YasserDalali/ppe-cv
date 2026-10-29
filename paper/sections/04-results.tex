@@ -6,6 +6,10 @@ All 14 runs completed the full 50 epochs on one T4, taking about 5\,min per B ru
 
 \textbf{Where the gain comes from (Table~\ref{tab:perclass}).} Every model finds persons (95 to 97\%). The gain is in vests, boots and helmets. The plant's ``vest'' is a dark work jacket with reflective bands, and no public model recognizes it as a vest (B 0.5\%, S 0.0\%, A 96.4\%; Fig.~\ref{fig:examples}). Leaving vests out, A$-$S is still 28.8 points and A$-$B 11.7, mostly from boots. Adding public industrial images makes helmets and boots harder to find at the plant: from B to P, helmets drop from 81.3 to 30.1\% and boots from 42.8 to 10.6\%. SH17 supplies 1{,}500 of P's 1{,}970 training images, and its PPE is mostly photographed large and close up, whereas plant PPE is small and seen from a distance. Neither public model detects gas masks, and A reaches 23.4\%. No model detects gloves or goggles (A: 0.0 and 0.1\%). Both are small at plant camera distances, often occluded, and rare (31 and 32 boxes in a few recordings).
 
+\textbf{Threshold (Fig.~\ref{fig:pr}a).} On the common classes, the F1-optimal confidence threshold on plant frames is 0.35 for A (F1 85.6\%), 0.28 for B (54.1\%), 0.43 for P and 0.33 for S. The 0.25 we use for P/R is below every model's optimum and closest to B's, so it does not favor A.
+
+\textbf{Speed.} We measured speed offline on a Tesla T4 (Google Colab) at batch size 1, over 200 plant frames ($1920\times1080$) after 10 warm-up frames. One A model needs 11.7\,ms per frame (2.0\,ms pre-processing, 8.5\,ms inference, 1.2\,ms NMS). The figure covers the model only. It excludes video decoding, network transfer and alert handling, and we did not measure the end-to-end throughput of a multi-camera deployment.
+
 \begin{table}[H]
 \caption{Plant frames (207 frames, 14 recordings), mAP@50 in \%. B, P, S: mean $\pm$ s.d.\ over three seeds. A: one value from the pooled out-of-fold predictions of its five fold models (70.0 to 94.0\% per fold). 95\% CIs come from 1{,}000 bootstrap resamples of recordings, and differences are paired. P/R at confidence 0.25. Empty cells: B was not trained on goggles and gas masks.}
 \label{tab:main}
@@ -81,14 +85,12 @@ gas mask & 59  & n/a  & 1.4  & 23.4 & 33.3 & 18.6 \\
 
 \textbf{Public test sets (Table~\ref{tab:other}).} Each model does best on the kind of image it was trained on: B on construction images, P and S on public images, and A on plant frames. Plant frames cost A about one point on the public test set (62.3\,$\pm$\,1.2 vs.\ 63.3\,$\pm$\,0.5\% for S). B, which never saw SH17 or gas-mask images, scores 14.3\% on the common classes of the held-out images and 22.2\% on the public test set.
 
-\textbf{Threshold (Fig.~\ref{fig:pr}a).} On the common classes, the F1-optimal confidence threshold on plant frames is 0.35 for A (F1 85.6\%), 0.28 for B (54.1\%), 0.43 for P and 0.33 for S. The 0.25 we use for P/R is below every model's optimum and closest to B's, so it does not favor A.
-
-\textbf{Speed.} We measured speed offline on a Tesla T4 (Google Colab) at batch size 1, over 200 plant frames ($1920\times1080$) after 10 warm-up frames. One A model needs 11.7\,ms per frame (2.0\,ms pre-processing, 8.5\,ms inference, 1.2\,ms NMS). The figure covers the model only. It excludes video decoding, network transfer and alert handling, and we did not measure the end-to-end throughput of a multi-camera deployment.
+\textbf{Error analysis (Fig.~\ref{fig:pr}b).} Most of A's errors are missed objects. Of 1{,}007 plant objects, 76.4\% are found, 21.6\% are missed and 2.0\% get the wrong class, mainly boots read as helmets (8 cases). A finds 95.7\% of vests, 81.7\% of helmets and 76.2\% of boots, but only 18.6\% of gas masks and no gloves or goggles. These three are the smallest objects (Fig.~\ref{fig:sizes}). In the 640-pixel model input, the median plant goggle is 11 pixels across (57 in public training images), a gas mask 23 (170, mostly face close-ups) and a glove 12 (34). Plant helmets and boots are also small (23 and 18 pixels), but A has many plant examples of them. A sees most gas masks but with low confidence: 41 of 59 have a matching box at some confidence, and 11 above 0.25. Its goggle boxes are poorly placed, and gloves are not detected at all. Our compute budget (14 runs on one T4 GPU) kept the input at 640 pixels. A 1280-pixel input would double the size of these objects, at about four times the computation. Over the 207 frames, 153 detections match no object, most of them boots (60). Plant frames have no absence labels, so we cannot assess the absence classes here.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.8\linewidth]{figures/ocp_examples.jpg}\\[-1pt]
-\makebox[0.8\linewidth]{\scriptsize\makebox[0.2\linewidth]{(a)}\hfill\makebox[0.2\linewidth]{(b)}\hfill\makebox[0.2\linewidth]{(c)}\hfill\makebox[0.2\linewidth]{(d)}}
+\includegraphics[width=0.74\linewidth]{figures/ocp_examples.jpg}\\[-1pt]
+\makebox[0.74\linewidth]{\scriptsize\makebox[0.18\linewidth]{(a)}\hfill\makebox[0.18\linewidth]{(b)}\hfill\makebox[0.18\linewidth]{(c)}\hfill\makebox[0.18\linewidth]{(d)}}
 \caption{Four held-out plant frames from different recordings, picked by hand among frames where A finds more objects than B, so they illustrate rather than measure. Top: A's fold model, which never saw the recording (green). Bottom: B, seed 0 (red). Confidence $\geq$\,0.25; absence classes are not drawn, since plant frames have no absence labels. (a) A finds the worker, helmet, work jacket, gas mask and both boots; B misses the jacket and gas mask and reads a pipe as gloves. (b) The worker carries the helmet and wears a gas mask; A detects the carried helmet as an item, which does not establish compliance. (c) A second worker in a dark blue coat, seen from a distance and from above: A finds him, his helmet, coat and boots; B finds him and the helmet. (d) Near a stairway, B finds the worker and helmet; A also finds the jacket and boots.}
 \label{fig:examples}
 \end{figure}
@@ -97,19 +99,17 @@ gas mask & 59  & n/a  & 1.4  & 23.4 & 33.3 & 18.6 \\
 \centering
 \begin{minipage}[b]{0.49\columnwidth}
 \centering
-\IfFileExists{figures/pr_curves.pdf}{\includegraphics[width=0.72\linewidth]{figures/pr_curves.pdf}}{\fbox{\parbox[c][4.2cm][c]{0.94\linewidth}{\centering\scriptsize\textcolor{red}{[Figure placeholder: pr\_curves.pdf from results/revision/final]}}}}\\[1pt]
+\IfFileExists{figures/pr_curves.pdf}{\includegraphics[width=0.68\linewidth]{figures/pr_curves.pdf}}{\fbox{\parbox[c][4.2cm][c]{0.94\linewidth}{\centering\scriptsize\textcolor{red}{[Figure placeholder: pr\_curves.pdf from results/revision/final]}}}}\\[1pt]
 {\scriptsize (a)}
 \end{minipage}\hfill
 \begin{minipage}[b]{0.49\columnwidth}
 \centering
-\IfFileExists{figures/confusion_matrix.pdf}{\includegraphics[width=0.72\linewidth]{figures/confusion_matrix.pdf}}{\fbox{\parbox[c][4.2cm][c]{0.94\linewidth}{\centering\scriptsize\textcolor{red}{[Figure placeholder: confusion\_matrix.pdf from results/revision/final]}}}}\\[1pt]
+\IfFileExists{figures/confusion_matrix.pdf}{\includegraphics[width=0.68\linewidth]{figures/confusion_matrix.pdf}}{\fbox{\parbox[c][4.2cm][c]{0.94\linewidth}{\centering\scriptsize\textcolor{red}{[Figure placeholder: confusion\_matrix.pdf from results/revision/final]}}}}\\[1pt]
 {\scriptsize (b)}
 \end{minipage}
 \caption{Plant frames, pooled. (a) Precision against recall on the common classes for confidence thresholds from 0.05 to 0.95 (B, P, S: seed 0). Dots mark each model's F1-optimal point. (b) Confusion matrix of A on all classes (out-of-fold predictions, confidence 0.25, IoU 0.5). Rows are the true class and columns the predicted class; the last column counts missed objects and the last row counts detections that match no object. Cells show counts, and shading shows the share of each row.}
 \label{fig:pr}
 \end{figure}
-
-\textbf{Error analysis (Fig.~\ref{fig:pr}b).} Most of A's errors are missed objects. Of 1{,}007 plant objects, 76.4\% are found, 21.6\% are missed and 2.0\% get the wrong class, mainly boots read as helmets (8 cases). A finds 95.7\% of vests, 81.7\% of helmets and 76.2\% of boots, but only 18.6\% of gas masks and no gloves or goggles. These three are the smallest objects (Fig.~\ref{fig:sizes}). In the 640-pixel model input, the median plant goggle is 11 pixels across (57 in public training images), a gas mask 23 (170, mostly face close-ups) and a glove 12 (34). Plant helmets and boots are also small (23 and 18 pixels), but A has many plant examples of them. A sees most gas masks but with low confidence: 41 of 59 have a matching box at some confidence, and 11 above 0.25. Its goggle boxes are poorly placed, and gloves are not detected at all. Our compute budget (14 runs on one T4 GPU) kept the input at 640 pixels. A 1280-pixel input would double the size of these objects, at about four times the computation. Over the 207 frames, 153 detections match no object, most of them boots (60). Plant frames have no absence labels, so we cannot assess the absence classes here.
 
 \begin{figure}[H]
 \centering
