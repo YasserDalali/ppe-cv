@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from ppe.config import JOBS  # noqa: E402
 
 FILES = {"job0": "job0_prepare", "job1": "job1_B_A012", "job2": "job2_S",
-         "job3": "job3_A34", "job4": "job4_P", "collect": "collect"}
+         "job3": "job3_A34", "job4": "job4_P", "job6": "job6_A1280", "collect": "collect"}
 CPU_JOBS = {"job0", "collect"}
 JOB_LINE = "JOB = 'job1'  # job0 | job1 | job2 | job3 | job4 | collect\n"
 

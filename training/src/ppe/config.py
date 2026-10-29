@@ -9,7 +9,7 @@ KAGGLE_USERNAME and KAGGLE_KEY, in order of preference, from:
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 # no_goggle removed (2026-10 revision): zero instances in every source, so it
@@ -177,6 +177,15 @@ EXPERIMENTS = {
           "ocp": False, "sh17_extra": True, "seeds": [0, 1, 2]},
     "A": {"label": "Ours, OCP on", "sources": PUBLIC_SOURCES,
           "ocp": True, "sh17_extra": False, "folds": [0, 1, 2, 3, 4]},
+    # A's data and recipe at 1280 px, outside the B/P/S/A ladder: does input
+    # resolution recover the small PPE (gloves, goggles, gas masks) that 640
+    # misses? Folds 0 and 1 hold 28 of 31 gloves and 16 of 32 goggles. Batch 8
+    # fits a T4; Ultralytics accumulates gradients to its nominal batch of 64,
+    # so the effective batch, weight decay and the 'auto' optimizer (AdamW at
+    # the same lr) are unchanged.
+    "A1280": {"label": "Ours, OCP on, 1280 px", "sources": PUBLIC_SOURCES,
+              "ocp": True, "sh17_extra": False, "folds": [0, 1],
+              "overrides": {"imgsz": 1280, "batch": 8}},
 }
 
 # One Colab notebook per job; jobs 1-4 run in parallel after job0 built the
@@ -187,6 +196,7 @@ JOBS = {
     "job2": ["S_s0", "S_s1", "S_s2"],
     "job3": ["A_f3", "A_f4"],
     "job4": ["P_s0", "P_s1", "P_s2"],
+    "job6": ["A1280_f0", "A1280_f1"],
     "collect": [],
 }
 
@@ -204,6 +214,13 @@ def parse_run_id(run_id: str) -> tuple[str, int, int | None]:
     if n not in EXPERIMENTS[exp].get("seeds", []):
         raise ValueError(f"{run_id}: experiment {exp} has no seed {n}")
     return exp, n, None
+
+
+def run_config(cfg: Config, run_id: str) -> Config:
+    """cfg with the run's experiment overrides applied (e.g. A1280: imgsz,
+    batch); every other setting is shared by all runs."""
+    exp, _, _ = parse_run_id(run_id)
+    return replace(cfg, **EXPERIMENTS[exp].get("overrides", {}))
 
 
 def all_run_ids() -> list[str]:

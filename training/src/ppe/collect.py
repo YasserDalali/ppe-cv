@@ -364,36 +364,102 @@ def sizes_tex(sizes: dict) -> str:
             + "\n".join(plots + legend) + "\n\\end{axis}\n\\end{tikzpicture}\n")
 
 
-def _confusion_figure(cm: dict, out_dir: Path) -> None:
+def _draw_confusion(ax, cm: dict, show_y: bool = True) -> None:
     """Rows = true class, columns = predicted class, last row/column =
     background. Colour = share of each row; numbers = counts."""
+    import numpy as np
+
+    m = np.array(cm["matrix"], dtype=float)
+    share = m / np.maximum(m.sum(axis=1, keepdims=True), 1)
+    labels = [l.replace("_", " ") for l in cm["labels"]]
+    ax.imshow(share, cmap="Blues", vmin=0, vmax=1)
+    for i in range(m.shape[0]):
+        for j in range(m.shape[1]):
+            if m[i, j]:
+                ax.text(j, i, int(m[i, j]), ha="center", va="center", fontsize=5.5,
+                        color="white" if share[i, j] > 0.6 else "black")
+    ax.set_xticks(range(len(labels)), labels, rotation=45, ha="right")
+    ax.set_yticks(range(len(labels)), labels if show_y else [])
+    ax.tick_params(length=2, pad=1)
+    ax.set_xlabel("Predicted class", labelpad=1)
+    if show_y:
+        ax.set_ylabel("True class", labelpad=1)
+
+
+def _confusion_figure(cm: dict, out_dir: Path) -> None:
     try:
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-        import numpy as np
     except ImportError:
         print("[collect] matplotlib missing — skipping confusion_matrix")
         return
-    m = np.array(cm["matrix"], dtype=float)
-    share = m / np.maximum(m.sum(axis=1, keepdims=True), 1)
-    labels = [l.replace("_", " ") for l in cm["labels"]]
     with plt.rc_context(PANEL_RC):
         fig, ax = plt.subplots(figsize=(PANEL_WIDTH_IN, PANEL_WIDTH_IN))
-        ax.imshow(share, cmap="Blues", vmin=0, vmax=1)
-        for i in range(m.shape[0]):
-            for j in range(m.shape[1]):
-                if m[i, j]:
-                    ax.text(j, i, int(m[i, j]), ha="center", va="center", fontsize=5.5,
-                            color="white" if share[i, j] > 0.6 else "black")
-        ax.set_xticks(range(len(labels)), labels, rotation=45, ha="right")
-        ax.set_yticks(range(len(labels)), labels)
-        ax.tick_params(length=2, pad=1)
-        ax.set_xlabel("Predicted class", labelpad=1)
-        ax.set_ylabel("True class", labelpad=1)
+        _draw_confusion(ax, cm)
         fig.tight_layout(pad=0.2)
         for ext in ("png", "pdf"):
             fig.savefig(out_dir / f"confusion_matrix.{ext}", dpi=300)
+        plt.close(fig)
+
+
+def resolution_compare(cfg: Config, pool_dir: Path, scores: dict) -> dict:
+    """A at 640 px vs. A1280 on the same frames: the test recordings of the
+    folds A1280 was trained for, each frame scored by the model of its fold
+    that never saw it. Empty until both resolutions are scored."""
+    root = results_root(cfg)
+    folds = EXPERIMENTS["A1280"]["folds"]
+    runs = {"640": [f"A_f{f}" for f in folds], "1280": [f"A1280_f{f}" for f in folds]}
+    if not all((root / r / "preds_ocp.json").is_file() for rs in runs.values() for r in rs):
+        return {}
+    caches = {}
+    for res, rids in runs.items():
+        caches[res] = {"images": {}}
+        for rid in rids:
+            caches[res]["images"].update(json.loads((root / rid / "preds_ocp.json").read_text())["images"])
+    frames = set(caches["640"]["images"])
+    if frames != set(caches["1280"]["images"]):
+        raise RuntimeError("A and A1280 were scored on different frames — fold split differs")
+    eval_dir = cfg.work_root / "ocp_all"
+    if not (eval_dir / "data.yaml").is_file():
+        ocp_all_eval_set(cfg, pool_dir, eval_dir)
+    items = [it for it in load_eval_set(eval_dir) if it[0].name in frames]
+    scope = scores[runs["640"][0]]["scopes"]["all"]
+    from ppe.pool import recording_id
+
+    out = {"folds": folds, "n_images": len(items),
+           "recordings": sorted({recording_id(it[0].name) for it in items}), "models": {}}
+    for res, cache in caches.items():
+        s = summarize(match_cache(items, cache, scope), scope, cfg.op_conf)
+        out["models"][res] = {
+            "map50": s["map50"], "P": s["P"], "R": s["R"],
+            "per_class": {c: {k: s["per_class"][c][k] for k in ("n_gt", "ap50", "P", "R")}
+                          for c in s["per_class"]},
+            "confusion": confusion_matrix(items, cache, s["classes"], cfg.op_conf, cfg.match_iou)}
+    lat = root / "latency_A1280_f0.json"
+    if lat.is_file():
+        out["latency_1280"] = json.loads(lat.read_text())
+    return out
+
+
+def _resolution_figure(res: dict, out_dir: Path) -> None:
+    """The two confusion matrices side by side, same frames, same layout."""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print("[collect] matplotlib missing — skipping resolution_confusion")
+        return
+    with plt.rc_context(PANEL_RC):
+        fig, axes = plt.subplots(1, 2, figsize=(2 * PANEL_WIDTH_IN, PANEL_WIDTH_IN + 0.3))
+        for ax, (key, show_y) in zip(axes, (("640", True), ("1280", False))):
+            _draw_confusion(ax, res["models"][key]["confusion"], show_y)
+            ax.set_title(f"A, {key} px", fontsize=6.5, pad=2)
+        fig.tight_layout(pad=0.3, w_pad=0.4)
+        for ext in ("png", "pdf"):
+            fig.savefig(out_dir / f"resolution_confusion.{ext}", dpi=300,
+                        bbox_inches="tight", pad_inches=0.02)
         plt.close(fig)
 
 
@@ -439,13 +505,14 @@ def collect(cfg: Config, pool_dir: Path) -> Path:
     counts = json.loads((Path(pool_dir) / "counts.json").read_text())
     abl = ablation(scores)
     pooled = pooled_ocp(cfg, pool_dir, scores)
+    resolution = resolution_compare(cfg, pool_dir, scores)
     extras = {}
-    for name in ("latency.json", "old_model_rescore.json"):
+    for name in ("latency.json", "latency_A1280_f0.json", "old_model_rescore.json"):
         p = results_root(cfg) / name
         if p.is_file():
             extras[name] = json.loads(p.read_text())
     summary = {"protocol": protocol(cfg), "missing_runs": missing, "ablation": abl,
-               "ocp_pooled": pooled, "counts": counts, **extras}
+               "ocp_pooled": pooled, "resolution": resolution, "counts": counts, **extras}
     _write_json(out / "summary.json", summary)
 
     tex = {}
@@ -512,6 +579,8 @@ def collect(cfg: Config, pool_dir: Path) -> Path:
             _example_figures(cfg, pooled["examples"], cache_a, cache_b, out)
         if "confusion_A" in pooled:
             _confusion_figure(pooled["confusion_A"], out)
+    if resolution:
+        _resolution_figure(resolution, out)
 
     # protocol: one row per reported number
     rows = []
@@ -521,7 +590,8 @@ def collect(cfg: Config, pool_dir: Path) -> Path:
                 if scope == "all" and exp == "B":
                     continue
                 v = by_set[name][scope]
-                runs = "5 folds" if exp == "A" else f"{v['map50']['n']} seeds"
+                runs = (f"{v['map50']['n']} folds" if EXPERIMENTS[exp].get("folds")
+                        else f"{v['map50']['n']} seeds")
                 rows.append([f"ablation", exp, runs, name.replace("_", " "), v["n_images"],
                              ", ".join(v["classes"]).replace("_", "\\_"),
                              cfg.conf_floor, cfg.op_conf, cfg.match_iou])

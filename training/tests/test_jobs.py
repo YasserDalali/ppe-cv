@@ -56,7 +56,7 @@ def ran(tmp_path, revision_raw, monkeypatch):
     monkeypatch.setattr("ppe.jobs.measure_latency",
                         lambda w, frames, c: {"total": 9.0, "n_frames": len(frames)})
     run_job(cfg, "job0", {"ROBOFLOW_API_KEY": "k"})
-    for job in ("job1", "job2", "job3", "job4"):
+    for job in (j for j in JOBS if j not in ("job0", "collect")):
         run_job(cfg, job)
     run_job(cfg, "collect")
     return cfg
@@ -154,3 +154,18 @@ def test_object_sizes_read_polygons_and_boxes_alike(tmp_path):
     side = (0.2 * 100 * 0.4 * 50) ** 0.5 * cfg.imgsz / 100
     assert sizes["plant"]["helmet"]["median"] == pytest.approx(side)
     assert sizes["public"]["helmet"]["median"] == pytest.approx(side)
+
+
+def test_A1280_uses_its_overrides_and_is_compared_on_the_same_frames(ran):
+    root = ran.results_dir / "revision"
+    hi = json.loads((root / "A1280_f0" / "scores.json").read_text())["meta"]
+    lo = json.loads((root / "A_f0" / "scores.json").read_text())["meta"]
+    assert (hi["imgsz"], hi["batch"]) == (1280, 8)
+    assert (lo["imgsz"], lo["batch"]) == (ran.imgsz, ran.batch), "overrides leaked into A"
+    assert hi["ocp_test_recordings"] == lo["ocp_test_recordings"]
+    res = json.loads((root / "final" / "summary.json").read_text())["resolution"]
+    assert res["folds"] == [0, 1] and set(res["models"]) == {"640", "1280"}
+    assert res["n_images"] == sum(OCP_RECORDINGS[r] for r in res["recordings"])
+    assert (root / "final" / "resolution_confusion.pdf").is_file()
+    pool_dirs = {p.name for p in ran.local_pool_dir.iterdir()}
+    assert {"resized1280", f"resized{ran.imgsz}"} <= pool_dirs, pool_dirs

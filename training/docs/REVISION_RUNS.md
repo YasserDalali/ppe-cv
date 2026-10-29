@@ -33,6 +33,24 @@ time, one Colab tab each. Then `collect`.
 If GPU time runs short: jobs 1, 2 and 3 (B, S, A) answer the main remark of
 all four reviewers. Job 4 (P) adds the OCP-off step.
 
+## job6: A at 1280 px (folds 0 and 1)
+
+A second training of A with the same data and recipe, only at `imgsz=1280`
+(`EXPERIMENTS["A1280"]`, run ids `A1280_f0`, `A1280_f1`). It sits outside the
+B/P/S/A ladder: 640 px is the controlled benchmark, 1280 px asks whether input
+resolution recovers the small PPE that 640 misses. Folds 0 and 1 hold 28 of the
+31 gloves and 16 of the 32 goggles.
+
+- Runtime: T4 GPU, about 2 to 2.5 h per fold; notebook `job6_A1280.ipynb`.
+- Batch 8 (16 does not fit a T4 at 1280). Ultralytics accumulates gradients to
+  its nominal batch of 64, so effective batch, weight decay and the `auto`
+  optimizer (AdamW, same lr) match the 640 runs.
+- Resized images go to `pool/resized1280/` (the 640 cache is untouched); speed
+  at 1280 is written to `results/revision/latency_A1280_f0.json`.
+- Then rerun `collect`: it adds `summary.json["resolution"]` (640 vs 1280 on the
+  same 85 frames, both from out-of-fold models) and
+  `final/resolution_confusion.pdf` (the paper's Fig. 5).
+
 ## Before job0 — one manual step
 
 Upload `~/Downloads/OCP.yolov8.zip` (207 frames, no augmentation) to

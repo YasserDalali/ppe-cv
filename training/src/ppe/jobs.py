@@ -15,7 +15,7 @@ import shutil
 import zipfile
 from pathlib import Path
 
-from ppe.config import CANONICAL_CLASSES, JOBS, Config, parse_run_id
+from ppe.config import CANONICAL_CLASSES, JOBS, Config, parse_run_id, run_config
 from ppe.pool import assemble_run, ensure_pool
 from ppe.scoring import (cache_predictions, match_cache, measure_latency,
                          score_eval_set, summarize)
@@ -54,6 +54,7 @@ def _write_json(path: Path, data) -> None:
 
 
 def run_one(cfg: Config, run_id: str, pool_dir: Path) -> dict:
+    cfg = run_config(cfg, run_id)  # per-experiment overrides (A1280: imgsz, batch)
     res = results_root(cfg) / run_id
     if (res / "scores.json").is_file():
         print(f"[job] {run_id}: scores.json on Drive — skipping")
@@ -72,7 +73,8 @@ def run_one(cfg: Config, run_id: str, pool_dir: Path) -> dict:
     for f in ("args.yaml", "results.csv"):
         if (run_dir / f).is_file():
             shutil.copy2(run_dir / f, res / f)
-    scores = {"run_id": run_id, "meta": data.meta, "weights": str(best),
+    scores = {"run_id": run_id, "meta": {**data.meta, "imgsz": cfg.imgsz, "batch": cfg.batch},
+              "weights": str(best),
               "protocol": protocol(cfg), "scopes": scopes, "sets": sets}
     _write_json(res / "scores.json", scores)
     ocp = sets["ocp"]
@@ -82,7 +84,8 @@ def run_one(cfg: Config, run_id: str, pool_dir: Path) -> dict:
 
 
 def latency(cfg: Config, pool_dir: Path, run_id: str = "A_f0", n_frames: int = 200) -> dict:
-    out = results_root(cfg) / "latency.json"
+    cfg = run_config(cfg, run_id)
+    out = results_root(cfg) / ("latency.json" if run_id == "A_f0" else f"latency_{run_id}.json")
     if out.is_file():
         return json.loads(out.read_text())
     frames_dir = cfg.work_root / "runs" / run_id / "eval" / "ocp" / "images"
@@ -156,7 +159,7 @@ def run_job(cfg: Config, job: str, secrets: dict | None = None) -> None:
         return
     for run_id in JOBS[job]:
         run_one(cfg, run_id, pool)
-        if run_id == "A_f0":
+        if run_id in ("A_f0", "A1280_f0"):
             latency(cfg, pool, run_id)
         # each local run copy is ~7 GB with the .npy cache; scores are on Drive
         shutil.rmtree(cfg.work_root / "runs" / run_id, ignore_errors=True)
