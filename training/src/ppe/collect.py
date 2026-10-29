@@ -222,7 +222,7 @@ def _pr_figure(pooled: dict, out_dir: Path) -> None:
     except ImportError:
         print("[collect] matplotlib missing — skipping pr_curves")
         return
-    scope = pooled["scopes"].get("all") or pooled["scopes"]["common"]
+    scope = pooled["scopes"]["common"]  # the only scope that includes the benchmark B
     fig, ax = plt.subplots(figsize=(4.2, 3.4))
     for exp, m in scope["models"].items():
         rs = [p["R"] for p in m["pr_curve"]]
@@ -234,7 +234,7 @@ def _pr_figure(pooled: dict, out_dir: Path) -> None:
     ax.set_ylabel("Precision")
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
-    ax.set_title("OCP plant frames, confidence sweep 0.05–0.95")
+    ax.set_title("OCP plant frames, common classes, confidence 0.05–0.95", fontsize=9)
     ax.legend(fontsize=7)
     fig.tight_layout()
     for ext in ("png", "pdf"):
