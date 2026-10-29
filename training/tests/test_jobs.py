@@ -111,3 +111,16 @@ def test_A_folds_never_score_a_recording_they_trained_on(ran):
         meta = json.loads((root / f"A_f{f}" / "scores.json").read_text())["meta"]
         preds = json.loads((root / f"A_f{f}" / "preds_ocp.json").read_text())
         assert {recording_id(n) for n in preds["images"]} == set(meta["ocp_test_recordings"])
+
+
+def test_settings_report_the_optimizer_that_auto_resolves_to(tmp_path):
+    from ppe.collect import _settings
+    from ppe.jobs import results_root
+
+    cfg = revision_cfg(tmp_path)
+    run = results_root(cfg) / "A_f0"
+    run.mkdir(parents=True)
+    (run / "args.yaml").write_text(yaml.safe_dump({"optimizer": "auto", "lr0": 0.01, "momentum": 0.937}))
+    rows = dict(_settings(cfg, {"A_f0": {}}))
+    assert rows["optimizer"] == "auto"
+    assert rows["optimizer (effective)"].startswith("AdamW, lr0 0.000769, momentum 0.9")

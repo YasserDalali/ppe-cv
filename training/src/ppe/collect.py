@@ -323,6 +323,12 @@ def _settings(cfg: Config, scores: dict) -> list:
                 "weight_decay", "warmup_epochs", "mosaic", "close_mosaic", "erasing", "fliplr",
                 "hsv_h", "hsv_s", "hsv_v", "translate", "scale"]
         rows += [[k, args.get(k)] for k in keys if k in args]
+        if args.get("optimizer") == "auto":
+            # Ultralytics' rule for runs under 10,000 iterations (all of ours):
+            # AdamW at a class-count-based lr; lr0 and momentum above are unused
+            lr_fit = round(0.002 * 5 / (4 + len(CANONICAL_CLASSES)), 6)
+            rows.append(["optimizer (effective)",
+                         f"AdamW, lr0 {lr_fit}, momentum 0.9 (Ultralytics auto rule)"])
     try:
         import torch
         import ultralytics
