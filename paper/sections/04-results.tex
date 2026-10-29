@@ -99,12 +99,12 @@ gas mask & 59  & n/a  & 1.4  & 23.4 & 33.3 & 18.6 \\
 \centering
 \begin{minipage}[b]{0.49\columnwidth}
 \centering
-\IfFileExists{figures/pr_curves.pdf}{\includegraphics[width=0.6\linewidth]{figures/pr_curves.pdf}}{\fbox{\parbox[c][4.2cm][c]{0.94\linewidth}{\centering\scriptsize\textcolor{red}{[Figure placeholder: pr\_curves.pdf from results/revision/final]}}}}\\[1pt]
+\IfFileExists{figures/pr_curves.pdf}{\includegraphics[width=1.8in]{figures/pr_curves.pdf}}{\fbox{\parbox[c][4.2cm][c]{0.94\linewidth}{\centering\scriptsize\textcolor{red}{[Figure placeholder: pr\_curves.pdf from results/revision/final]}}}}\\[1pt]
 {\scriptsize (a)}
 \end{minipage}\hfill
 \begin{minipage}[b]{0.49\columnwidth}
 \centering
-\IfFileExists{figures/confusion_matrix.pdf}{\includegraphics[width=0.6\linewidth]{figures/confusion_matrix.pdf}}{\fbox{\parbox[c][4.2cm][c]{0.94\linewidth}{\centering\scriptsize\textcolor{red}{[Figure placeholder: confusion\_matrix.pdf from results/revision/final]}}}}\\[1pt]
+\IfFileExists{figures/confusion_matrix.pdf}{\includegraphics[width=1.8in]{figures/confusion_matrix.pdf}}{\fbox{\parbox[c][4.2cm][c]{0.94\linewidth}{\centering\scriptsize\textcolor{red}{[Figure placeholder: confusion\_matrix.pdf from results/revision/final]}}}}\\[1pt]
 {\scriptsize (b)}
 \end{minipage}
 \caption{Plant frames, pooled. (a) Precision against recall on the common classes for confidence thresholds from 0.05 to 0.95 (B, P, S: seed 0). Dots mark each model's F1-optimal point. (b) Confusion matrix of A on all classes (out-of-fold predictions, confidence 0.25, IoU 0.5). Rows are the true class and columns the predicted class; the last column counts missed objects and the last row counts detections that match no object. Cells show counts, and shading shows the share of each row.}

@@ -214,6 +214,13 @@ def _example_figures(cfg: Config, examples: list, cache_a: dict, cache_b: dict,
         both.save(out_dir / f"ocp_example_{i}.jpg", quality=90)
 
 
+# Fig. 4 panels are drawn at their printed width (inches) so text keeps its
+# point size in the paper instead of shrinking when LaTeX scales the PDF.
+PANEL_WIDTH_IN = 1.8
+PANEL_RC = {"font.size": 6.5, "axes.labelsize": 6.5, "xtick.labelsize": 6, "ytick.labelsize": 6,
+            "legend.fontsize": 5.5, "axes.linewidth": 0.6, "lines.linewidth": 1.0}
+
+
 def _pr_figure(pooled: dict, out_dir: Path) -> None:
     try:
         import matplotlib
@@ -223,23 +230,23 @@ def _pr_figure(pooled: dict, out_dir: Path) -> None:
         print("[collect] matplotlib missing — skipping pr_curves")
         return
     scope = pooled["scopes"]["common"]  # the only scope that includes the benchmark B
-    fig, ax = plt.subplots(figsize=(4.2, 3.4))
-    for exp, m in scope["models"].items():
-        rs = [p["R"] for p in m["pr_curve"]]
-        ps = [p["P"] for p in m["pr_curve"]]
-        ax.plot(rs, ps, marker=".", label=f"{exp}: {EXPERIMENTS[exp]['label']}")
-        b = m["best_f1"]
-        ax.scatter([b["R"]], [b["P"]], s=40, edgecolor="black", zorder=3)
-    ax.set_xlabel("Recall")
-    ax.set_ylabel("Precision")
-    ax.set_xlim(0, 1)
-    ax.set_ylim(0, 1)
-    ax.set_title("OCP plant frames, common classes, confidence 0.05–0.95", fontsize=9)
-    ax.legend(fontsize=7)
-    fig.tight_layout()
-    for ext in ("png", "pdf"):
-        fig.savefig(out_dir / f"pr_curves.{ext}", dpi=200)
-    plt.close(fig)
+    with plt.rc_context(PANEL_RC):
+        fig, ax = plt.subplots(figsize=(PANEL_WIDTH_IN, 0.85 * PANEL_WIDTH_IN))
+        for exp, m in scope["models"].items():
+            rs = [p["R"] for p in m["pr_curve"]]
+            ps = [p["P"] for p in m["pr_curve"]]
+            ax.plot(rs, ps, marker=".", markersize=2.5, label="A (ours)" if exp == "A" else exp)
+            b = m["best_f1"]
+            ax.scatter([b["R"]], [b["P"]], s=14, edgecolor="black", linewidth=0.5, zorder=3)
+        ax.set_xlabel("Recall")
+        ax.set_ylabel("Precision")
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.legend(loc="lower right", frameon=False, handlelength=1.2, borderaxespad=0.2)
+        fig.tight_layout(pad=0.2)
+        for ext in ("png", "pdf"):
+            fig.savefig(out_dir / f"pr_curves.{ext}", dpi=300)
+        plt.close(fig)
 
 
 BAR_SETS = {"ocp": "Plant", "public_test": "Public", "construction_test": "Construction",
@@ -371,21 +378,23 @@ def _confusion_figure(cm: dict, out_dir: Path) -> None:
     m = np.array(cm["matrix"], dtype=float)
     share = m / np.maximum(m.sum(axis=1, keepdims=True), 1)
     labels = [l.replace("_", " ") for l in cm["labels"]]
-    fig, ax = plt.subplots(figsize=(4.2, 3.8))
-    ax.imshow(share, cmap="Blues", vmin=0, vmax=1)
-    for i in range(m.shape[0]):
-        for j in range(m.shape[1]):
-            if m[i, j]:
-                ax.text(j, i, int(m[i, j]), ha="center", va="center", fontsize=6,
-                        color="white" if share[i, j] > 0.6 else "black")
-    ax.set_xticks(range(len(labels)), labels, rotation=45, ha="right", fontsize=7)
-    ax.set_yticks(range(len(labels)), labels, fontsize=7)
-    ax.set_xlabel("Predicted class")
-    ax.set_ylabel("True class")
-    fig.tight_layout()
-    for ext in ("png", "pdf"):
-        fig.savefig(out_dir / f"confusion_matrix.{ext}", dpi=200)
-    plt.close(fig)
+    with plt.rc_context(PANEL_RC):
+        fig, ax = plt.subplots(figsize=(PANEL_WIDTH_IN, PANEL_WIDTH_IN))
+        ax.imshow(share, cmap="Blues", vmin=0, vmax=1)
+        for i in range(m.shape[0]):
+            for j in range(m.shape[1]):
+                if m[i, j]:
+                    ax.text(j, i, int(m[i, j]), ha="center", va="center", fontsize=5.5,
+                            color="white" if share[i, j] > 0.6 else "black")
+        ax.set_xticks(range(len(labels)), labels, rotation=45, ha="right")
+        ax.set_yticks(range(len(labels)), labels)
+        ax.tick_params(length=2, pad=1)
+        ax.set_xlabel("Predicted class", labelpad=1)
+        ax.set_ylabel("True class", labelpad=1)
+        fig.tight_layout(pad=0.2)
+        for ext in ("png", "pdf"):
+            fig.savefig(out_dir / f"confusion_matrix.{ext}", dpi=300)
+        plt.close(fig)
 
 
 def _settings(cfg: Config, scores: dict) -> list:
